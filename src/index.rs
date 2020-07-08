@@ -15,7 +15,6 @@ pub struct Index {
     fields: Vec<Field>,
     unique: bool,
     hash_value: Option<bool>,
-    pub client_index: usize,
     db: Db,
 }
 
@@ -26,7 +25,6 @@ impl Index {
         fields: Vec<Field>,
         unique: bool,
         hash_value: Option<bool>,
-        client_index: usize,
         db: Db,
     ) -> Self {
         let id = (bank_id as u32) << 16 | id as u32;
@@ -35,7 +33,6 @@ impl Index {
             fields,
             unique,
             hash_value,
-            client_index,
             db,
         }
     }

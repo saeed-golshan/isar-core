@@ -193,8 +193,7 @@ impl Schema {
     ) -> Vec<Index> {
         self.indices
             .iter()
-            .enumerate()
-            .map(|(i, index)| {
+            .map(|index| {
                 let fields = index
                     .field_names
                     .iter()
@@ -208,7 +207,6 @@ impl Schema {
                     fields,
                     index.unique,
                     index.hash_value,
-                    i,
                     db,
                 )
             })
