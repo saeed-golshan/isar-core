@@ -4,7 +4,7 @@ use crate::index::Index;
 use crate::lmdb::db::Db;
 use crate::lmdb::txn::Txn;
 use crate::object_id::{ObjectId, ObjectIdGenerator};
-use crate::query::key_range::{KeyRange, KeyRangeIterator};
+use crate::query::where_clause::WhereClause;
 use rand::random;
 
 pub struct IsarBank {
@@ -91,14 +91,24 @@ impl IsarBank {
         cursor.delete_key_prefix(&self.get_prefix())
     }
 
-    pub fn iter<'a, 'txn>(
+    pub fn new_where_clause(
         &self,
-        txn: &'txn Txn,
-        range: &'a mut KeyRange,
-    ) -> Result<KeyRangeIterator<'a, 'txn>> {
-        let cursor = self.db.cursor(txn)?;
-        range.add_prefix(&self.get_prefix());
-        range.iter(cursor)
+        index: usize,
+        lower_size: usize,
+        upper_size: usize,
+    ) -> WhereClause {
+        let index = self.indices.get(index);
+        let (prefix, db, unique) = if let Some(index) = index {
+            (
+                index.get_prefix().to_vec(),
+                index.get_db(),
+                index.is_unique(),
+            )
+        } else {
+            (self.get_prefix().to_vec(), self.db, true)
+        };
+
+        WhereClause::new(&prefix, lower_size, upper_size, db, index.is_none(), unique)
     }
 
     fn get_prefix(&self) -> [u8; 2] {

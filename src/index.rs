@@ -3,7 +3,6 @@ use crate::field::{DataType, Field};
 use crate::lmdb::db::Db;
 use crate::lmdb::txn::Txn;
 use crate::object_id::ObjectId;
-use crate::query::key_range::{KeyRange, KeyRangeIterator};
 use std::mem::transmute;
 use wyhash::wyhash;
 
@@ -37,8 +36,12 @@ impl Index {
         }
     }
 
-    pub fn get_id(&self) -> u32 {
-        self.id
+    pub fn get_prefix(&self) -> [u8; 4] {
+        u32::to_le_bytes(self.id)
+    }
+
+    pub fn get_db(&self) -> Db {
+        self.db
     }
 
     pub fn is_unique(&self) -> bool {
@@ -60,32 +63,31 @@ impl Index {
         cursor.delete_key_prefix(&self.get_prefix())
     }
 
-    pub fn iter<'a, 'txn>(
-        &self,
-        txn: &'txn Txn,
-        range: &'a mut KeyRange,
-    ) -> Result<KeyRangeIterator<'a, 'txn>> {
-        let cursor = self.db.cursor(txn)?;
-        range.add_prefix(&self.get_prefix());
-        range.iter(cursor)
-    }
-
-    fn get_prefix(&self) -> [u8; 4] {
-        u32::to_le_bytes(self.id)
-    }
-
     fn create_key(&self, object: &[u8]) -> Vec<u8> {
         let mut bytes = self.get_prefix().to_vec();
         if let Some(hash_value) = self.hash_value {
             let field = self.fields.first().unwrap();
             assert!(field.data_type == DataType::String || field.data_type == DataType::StringList);
-            bytes.extend(Self::get_string_value_key(field, object))
+            let value = field.get_bytes(object);
+            bytes.extend(Self::get_string_value_key(value))
         } else {
             let index_iter = self.fields.iter().flat_map(|field| match field.data_type {
-                DataType::Int => Self::get_int_key(field, object),
-                DataType::Double => Self::get_double_key(field, object),
-                DataType::Bool => Self::get_bool_key(field, object),
-                DataType::String => Self::get_string_hash_key(field, object),
+                DataType::Int => {
+                    let value = field.get_int(object);
+                    Self::get_int_key(value)
+                }
+                DataType::Double => {
+                    let value = field.get_double(object);
+                    Self::get_double_key(value)
+                }
+                DataType::Bool => {
+                    let value = field.get_bool(object);
+                    Self::get_bool_key(value)
+                }
+                DataType::String => {
+                    let value = field.get_bytes(object);
+                    Self::get_string_hash_key(value)
+                }
                 _ => unreachable!(),
             });
             bytes.extend(index_iter);
@@ -93,16 +95,12 @@ impl Index {
         bytes
     }
 
-    #[inline]
-    fn get_int_key(field: &Field, object: &[u8]) -> Vec<u8> {
-        let value = field.get_int(object);
+    pub fn get_int_key(value: i64) -> Vec<u8> {
         let unsigned = unsafe { transmute::<i64, u64>(value) };
         u64::to_be_bytes(unsigned ^ 1 << 63).to_vec()
     }
 
-    #[inline]
-    fn get_double_key(field: &Field, object: &[u8]) -> Vec<u8> {
-        let value = field.get_double(object);
+    pub fn get_double_key(value: f64) -> Vec<u8> {
         let mut bits = unsafe { std::mem::transmute::<f64, u64>(value) };
         if value == 0.0 {
             bits = 0;
@@ -115,33 +113,28 @@ impl Index {
         u64::to_be_bytes(bits).to_vec()
     }
 
-    #[inline]
-    fn get_bool_key(field: &Field, object: &[u8]) -> Vec<u8> {
-        if field.get_bool(object) {
+    pub fn get_bool_key(value: bool) -> Vec<u8> {
+        if value {
             vec![1]
         } else {
             vec![0]
         }
     }
 
-    #[inline]
-    fn get_string_hash_key(field: &Field, object: &[u8]) -> Vec<u8> {
-        let bytes = field.get_bytes(object);
-        let hash = wyhash(bytes, 0);
+    pub fn get_string_hash_key(value: &[u8]) -> Vec<u8> {
+        let hash = wyhash(value, 0);
         u64::to_be_bytes(hash).to_vec()
     }
 
-    #[inline]
-    fn get_string_value_key(field: &Field, object: &[u8]) -> Vec<u8> {
-        let string_bytes = field.get_bytes(object);
-        if string_bytes.len() >= MAX_STRING_INDEX_SIZE {
-            let mut bytes = (&string_bytes[0..MAX_STRING_INDEX_SIZE]).to_vec();
+    pub fn get_string_value_key(value: &[u8]) -> Vec<u8> {
+        if value.len() >= MAX_STRING_INDEX_SIZE {
+            let mut bytes = (&value[0..MAX_STRING_INDEX_SIZE]).to_vec();
             let hash = wyhash(&bytes, 0);
             let hash_bytes = u64::to_le_bytes(hash);
             bytes.extend_from_slice(&hash_bytes);
             bytes
         } else {
-            string_bytes.to_vec()
+            value.to_vec()
         }
     }
 }
@@ -153,8 +146,6 @@ mod tests {
 
     #[test]
     fn test_get_int_key() {
-        let field = Field::new("test".to_string(), DataType::Int, 0);
-
         let pairs = vec![
             (i64::MIN, vec![0, 0, 0, 0, 0, 0, 0, 0]),
             (i64::MIN + 1, vec![0, 0, 0, 0, 0, 0, 0, 1]),
@@ -165,8 +156,7 @@ mod tests {
             (i64::MAX, vec![255, 255, 255, 255, 255, 255, 255, 255]),
         ];
         for (val, bytes) in pairs {
-            let obj = i64::to_le_bytes(val).to_vec();
-            assert_eq!(Index::get_int_key(&field, &obj), bytes);
+            assert_eq!(Index::get_int_key(val), bytes);
         }
     }
 
@@ -175,23 +165,12 @@ mod tests {
 
     #[test]
     fn test_get_bool_index_key() {
-        let field = Field::new("test".to_string(), DataType::Bool, 0);
-
-        let pairs = vec![
-            (vec![0], vec![0]),
-            (vec![1], vec![1]),
-            (vec![2], vec![0]),
-            (vec![123], vec![0]),
-        ];
-        for (obj, bytes) in pairs {
-            assert_eq!(Index::get_bool_key(&field, &obj), bytes);
-        }
+        assert_eq!(Index::get_bool_key(false), vec![0]);
+        assert_eq!(Index::get_bool_key(true), vec![1]);
     }
 
     #[test]
     fn test_get_string_hash_key() {
-        let field = Field::new("test".to_string(), DataType::String, 0);
-
         let long_str = (0..1500).map(|_| "a").collect::<String>();
 
         let pairs: Vec<(&str, Vec<u8>)> = vec![
@@ -207,17 +186,12 @@ mod tests {
             (&long_str[..], vec![107, 96, 243, 122, 159, 148, 180, 244]),
         ];
         for (str, hash) in pairs {
-            let mut str_bytes = u32::to_le_bytes(str.len() as u32).to_vec();
-            str_bytes.extend_from_slice(&u32::to_le_bytes(4));
-            str_bytes.extend_from_slice(str.as_bytes());
-            assert_eq!(hash, Index::get_string_hash_key(&field, &str_bytes));
+            assert_eq!(hash, Index::get_string_hash_key(str.as_bytes()));
         }
     }
 
     #[test]
     fn test_get_string_value_key() {
-        let field = Field::new("test".to_string(), DataType::String, 0);
-
         let long_str = (0..1500).map(|_| "a").collect::<String>();
 
         let pairs: Vec<(&str, Vec<u8>)> = vec![
@@ -233,10 +207,7 @@ mod tests {
             (&long_str[..], vec![107, 96, 243, 122, 159, 148, 180, 244]),
         ];
         for (str, hash) in pairs {
-            let mut str_bytes = u32::to_le_bytes(str.len() as u32).to_vec();
-            str_bytes.extend_from_slice(&u32::to_le_bytes(4));
-            str_bytes.extend_from_slice(str.as_bytes());
-            assert_eq!(hash, Index::get_string_hash_key(&field, &str_bytes));
+            assert_eq!(hash, Index::get_string_hash_key(str.as_bytes()));
         }
     }
 }
