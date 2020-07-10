@@ -1,7 +1,7 @@
+use crate::data_dbs::{DataDbs, IndexType};
 use crate::error::{illegal_arg, illegal_state, Result};
 use crate::field::Field;
 use crate::index::Index;
-use crate::lmdb::db::Db;
 use crate::lmdb::txn::Txn;
 use crate::object_id::{ObjectId, ObjectIdGenerator};
 use crate::query::where_clause::WhereClause;
@@ -11,15 +11,21 @@ pub struct IsarBank {
     pub name: String,
     pub id: u16,
     fields: Vec<Field>,
-    indices: Vec<Index>,
+    indexes: Vec<Index>,
     static_size: usize,
     first_dynamic_field_index: Option<usize>,
-    db: Db,
+    dbs: DataDbs,
     oidg: ObjectIdGenerator,
 }
 
 impl IsarBank {
-    pub fn new(name: String, id: u16, fields: Vec<Field>, indices: Vec<Index>, db: Db) -> Self {
+    pub fn new(
+        name: String,
+        id: u16,
+        fields: Vec<Field>,
+        indexes: Vec<Index>,
+        dbs: DataDbs,
+    ) -> Self {
         let mut offset = 0;
         for field in &fields {
             assert_eq!(field.offset, offset);
@@ -41,22 +47,22 @@ impl IsarBank {
             name,
             id,
             fields,
-            indices,
+            indexes,
             static_size,
             first_dynamic_field_index,
-            db,
+            dbs,
             oidg: ObjectIdGenerator::new(random(), id),
         }
     }
 
     pub fn get<'txn>(&self, txn: &'txn Txn, oid: &ObjectId) -> Result<Option<&'txn [u8]>> {
-        self.db.get(txn, &oid.to_bytes())
+        self.dbs.primary.get(txn, &oid.to_bytes())
     }
 
     pub fn put(&mut self, txn: &Txn, oid: Option<ObjectId>, object: &[u8]) -> Result<ObjectId> {
         let oid = if let Some(oid) = oid {
             self.verify_object_id(&oid)?;
-            if !self.delete_from_indices(txn, &oid)? {
+            if !self.delete_from_indexes(txn, &oid)? {
                 illegal_state("ObjectId provided but no entry found.")?;
             }
             oid
@@ -68,26 +74,32 @@ impl IsarBank {
             illegal_arg("Provided object is invalid.")?;
         }
 
-        for index in &self.indices {
-            index.put(txn, &oid, object)?;
+        let oid_bytes = oid.to_bytes();
+
+        for index in &self.indexes {
+            let index_db = self.dbs.get(index.get_type());
+            let index_key = index.create_key(object);
+            index_db.put(txn, &index_key, &oid_bytes)?;
         }
 
-        self.db.put(txn, &oid.to_bytes(), object)?;
+        self.dbs.primary.put(txn, &oid_bytes, object)?;
         Ok(oid)
     }
 
     pub fn delete(&self, txn: &Txn, oid: &ObjectId) -> Result<()> {
-        if self.delete_from_indices(txn, oid)? {
-            self.db.delete(txn, &oid.to_bytes(), None)?;
+        if self.delete_from_indexes(txn, oid)? {
+            self.dbs.primary.delete(txn, &oid.to_bytes(), None)?;
         }
         Ok(())
     }
 
     pub fn clear(&self, txn: &Txn) -> Result<()> {
-        for index in &self.indices {
-            index.clear(txn)?;
+        for index in &self.indexes {
+            let index_db = self.dbs.get(index.get_type());
+            let mut cursor = index_db.cursor(txn)?;
+            cursor.delete_key_prefix(&index.get_prefix())?;
         }
-        let mut cursor = self.db.cursor(txn)?;
+        let mut cursor = self.dbs.primary.cursor(txn)?;
         cursor.delete_key_prefix(&self.get_prefix())
     }
 
@@ -97,18 +109,14 @@ impl IsarBank {
         lower_size: usize,
         upper_size: usize,
     ) -> WhereClause {
-        let index = self.indices.get(index);
-        let (prefix, db, unique) = if let Some(index) = index {
-            (
-                index.get_prefix().to_vec(),
-                index.get_db(),
-                index.is_unique(),
-            )
+        let index = self.indexes.get(index);
+        let (prefix, index_type) = if let Some(index) = index {
+            (index.get_prefix().to_vec(), index.get_type())
         } else {
-            (self.get_prefix().to_vec(), self.db, true)
+            (self.get_prefix().to_vec(), IndexType::Primary)
         };
 
-        WhereClause::new(&prefix, lower_size, upper_size, db, index.is_none(), unique)
+        WhereClause::new(&prefix, lower_size, upper_size, index_type)
     }
 
     fn get_prefix(&self) -> [u8; 2] {
@@ -147,11 +155,14 @@ impl IsarBank {
         }
     }
 
-    fn delete_from_indices(&self, txn: &Txn, oid: &ObjectId) -> Result<bool> {
+    fn delete_from_indexes(&self, txn: &Txn, oid: &ObjectId) -> Result<bool> {
         let old_object = self.get(txn, &oid)?;
         if let Some(old_object) = old_object {
-            for index in &self.indices {
-                index.delete(txn, oid, old_object)?;
+            let oid_bytes = oid.to_bytes();
+            for index in &self.indexes {
+                let index_db = self.dbs.get(index.get_type());
+                let index_key = index.create_key(old_object);
+                index_db.delete(txn, &index_key, Some(&oid_bytes))?;
             }
             Ok(true)
         } else {
@@ -163,6 +174,7 @@ impl IsarBank {
 #[cfg(test)]
 mod tests {
     use crate::bank::IsarBank;
+    use crate::data_dbs::DataDbs;
     use crate::field::{DataType, Field};
     use crate::lmdb::db::Db;
 
@@ -181,7 +193,17 @@ mod tests {
         ];
 
         fn bank(fields: &[Field]) -> IsarBank {
-            IsarBank::new("".to_string(), 0, fields.to_vec(), vec![], Db { dbi: 0 })
+            IsarBank::new(
+                "".to_string(),
+                0,
+                fields.to_vec(),
+                vec![],
+                DataDbs {
+                    primary: Db { dbi: 0 },
+                    secondary: Db { dbi: 0 },
+                    secondary_dup: Db { dbi: 0 },
+                },
+            )
         }
 
         assert_eq!(bank(&static_fields).verify_object(&[]), false);

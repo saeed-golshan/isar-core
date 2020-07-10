@@ -1,8 +1,5 @@
-use crate::error::Result;
+use crate::data_dbs::IndexType;
 use crate::field::{DataType, Field};
-use crate::lmdb::db::Db;
-use crate::lmdb::txn::Txn;
-use crate::object_id::ObjectId;
 use std::mem::transmute;
 use wyhash::wyhash;
 
@@ -12,9 +9,8 @@ const MAX_STRING_INDEX_SIZE: usize = 1500;
 pub struct Index {
     id: u32,
     fields: Vec<Field>,
-    unique: bool,
+    index_type: IndexType,
     hash_value: Option<bool>,
-    db: Db,
 }
 
 impl Index {
@@ -22,17 +18,15 @@ impl Index {
         bank_id: u16,
         id: u16,
         fields: Vec<Field>,
-        unique: bool,
+        index_type: IndexType,
         hash_value: Option<bool>,
-        db: Db,
     ) -> Self {
         let id = (bank_id as u32) << 16 | id as u32;
         Index {
             id,
             fields,
-            unique,
+            index_type,
             hash_value,
-            db,
         }
     }
 
@@ -40,34 +34,15 @@ impl Index {
         u32::to_le_bytes(self.id)
     }
 
-    pub fn get_db(&self) -> Db {
-        self.db
+    pub fn get_type(&self) -> IndexType {
+        IndexType::Secondary
     }
 
-    pub fn is_unique(&self) -> bool {
-        self.unique
-    }
-
-    pub fn put(&self, txn: &Txn, oid: &ObjectId, object: &[u8]) -> Result<()> {
-        let key = self.create_key(object);
-        self.db.put(txn, &key, &oid.to_bytes())
-    }
-
-    pub fn delete(&self, txn: &Txn, oid: &ObjectId, object: &[u8]) -> Result<()> {
-        let key = self.create_key(object);
-        self.db.delete(txn, &key, Some(&oid.to_bytes()))
-    }
-
-    pub fn clear(&self, txn: &Txn) -> Result<()> {
-        let mut cursor = self.db.cursor(txn)?;
-        cursor.delete_key_prefix(&self.get_prefix())
-    }
-
-    fn create_key(&self, object: &[u8]) -> Vec<u8> {
+    pub fn create_key(&self, object: &[u8]) -> Vec<u8> {
         let mut bytes = self.get_prefix().to_vec();
-        if let Some(hash_value) = self.hash_value {
+        if let Some(true) = self.hash_value {
             let field = self.fields.first().unwrap();
-            assert!(field.data_type == DataType::String || field.data_type == DataType::StringList);
+            assert_eq!(field.data_type, DataType::String);
             let value = field.get_bytes(object);
             bytes.extend(Self::get_string_value_key(value))
         } else {
