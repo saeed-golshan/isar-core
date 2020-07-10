@@ -1,6 +1,3 @@
-#![feature(trait_alias)]
-
-use crate::error::Result;
 use core::slice;
 use lmdb_sys as ffi;
 use std::ffi::c_void;

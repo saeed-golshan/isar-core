@@ -1,5 +1,6 @@
 use crate::bank::IsarBank;
 use crate::bank_manager::BankManager;
+use crate::data_dbs::DataDbs;
 use crate::error::IsarError::VersionError;
 use crate::error::*;
 use crate::lmdb::db::Db;
@@ -10,17 +11,9 @@ use std::convert::TryInto;
 
 pub const ISAR_VERSION: u32 = 1;
 
-struct LmdbDbs {
-    info: Db,
-    schema: Db,
-    data: Db,
-    index: Db,
-    index_dup: Db,
-}
-
 pub struct IsarInstance {
     env: Env,
-    dbs: LmdbDbs,
+    info_db: Db,
     bank_manager: BankManager,
     path: String,
 }
@@ -30,13 +23,13 @@ impl IsarInstance {
         let schemas = Schema::schemas_from_json(schemas_json)?;
 
         let env = Env::create(path, 5, max_size)?;
-        let dbs = IsarInstance::open_databases(&env)?;
+        let (info_db, schema_db, data_dbs) = IsarInstance::open_databases(&env)?;
 
         let txn = env.txn(true)?;
-        Self::migrate_isar_database(&txn, &dbs)?;
+        Self::migrate_isar_database(&txn, info_db, schema_db, data_dbs)?;
         txn.commit()?;
 
-        let mut bank_manager = BankManager::new(dbs.schema, dbs.data, dbs.index, dbs.index_dup);
+        let mut bank_manager = BankManager::new(schema_db, data_dbs);
 
         let txn = env.txn(true)?;
         bank_manager.init(&txn, schemas)?;
@@ -44,31 +37,38 @@ impl IsarInstance {
 
         Ok(IsarInstance {
             env,
-            dbs,
+            info_db,
             bank_manager,
             path: path.to_string(),
         })
     }
 
-    fn open_databases(env: &Env) -> Result<LmdbDbs> {
+    fn open_databases(env: &Env) -> Result<(Db, Db, DataDbs)> {
         let txn = env.txn(true)?;
         let info = Db::open(&txn, "info", false, false, false)?;
         let schema = Db::open(&txn, "schema", false, false, false)?;
-        let data = Db::open(&txn, "data", true, false, false)?;
-        let index = Db::open(&txn, "index", false, false, true)?;
-        let index_dup = Db::open(&txn, "index_dup", false, true, true)?;
+        let primary = Db::open(&txn, "data", true, false, false)?;
+        let secondary = Db::open(&txn, "index", false, false, true)?;
+        let secondary_dup = Db::open(&txn, "index_dup", false, true, true)?;
         txn.commit()?;
-        Ok(LmdbDbs {
+        Ok((
             info,
             schema,
-            data,
-            index,
-            index_dup,
-        })
+            DataDbs {
+                primary,
+                secondary,
+                secondary_dup,
+            },
+        ))
     }
 
-    fn migrate_isar_database(txn: &Txn, dbs: &LmdbDbs) -> Result<()> {
-        let version = dbs.info.get(&txn, b"version")?;
+    fn migrate_isar_database(
+        txn: &Txn,
+        info_db: Db,
+        schema_db: Db,
+        data_dbs: DataDbs,
+    ) -> Result<()> {
+        let version = info_db.get(&txn, b"version")?;
         if let Some(version) = version {
             let version_number = u32::from_le_bytes(version.try_into().unwrap());
             if version_number != ISAR_VERSION {
@@ -77,8 +77,7 @@ impl IsarInstance {
                 });
             }
         } else {
-            dbs.info
-                .put(&txn, b"version", &u32::to_le_bytes(ISAR_VERSION))?;
+            info_db.put(&txn, b"version", &u32::to_le_bytes(ISAR_VERSION))?;
         }
         Ok(())
     }

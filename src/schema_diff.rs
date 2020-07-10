@@ -3,8 +3,8 @@ use crate::schema::{Schema, SchemaField, SchemaIndex};
 struct SchemaDiff<'a> {
     added_fields: Vec<&'a SchemaField>,
     fields_removed: bool,
-    removed_indices: Vec<&'a SchemaIndex>,
-    added_indices: Vec<&'a SchemaIndex>,
+    removed_indexes: Vec<&'a SchemaIndex>,
+    added_indexes: Vec<&'a SchemaIndex>,
 }
 
 impl<'a> SchemaDiff<'a> {
@@ -20,30 +20,30 @@ impl<'a> SchemaDiff<'a> {
             .filter(|new_field| !old_schema.fields.contains(new_field))
             .collect();
 
-        let removed_indices = old_schema
-            .indices
+        let removed_indexes = old_schema
+            .indexes
             .iter()
-            .filter(|old_index| !new_schema.indices.contains(old_index))
+            .filter(|old_index| !new_schema.indexes.contains(old_index))
             .collect();
 
-        let added_indices = new_schema
-            .indices
+        let added_indexes = new_schema
+            .indexes
             .iter()
-            .filter(|new_index| !old_schema.indices.contains(new_index))
+            .filter(|new_index| !old_schema.indexes.contains(new_index))
             .collect();
 
         SchemaDiff {
             fields_removed,
             added_fields,
-            removed_indices,
-            added_indices,
+            removed_indexes,
+            added_indexes,
         }
     }
 
     fn no_change(&self) -> bool {
         !self.fields_removed
             && self.added_fields.is_empty()
-            && self.removed_indices.is_empty()
-            && self.added_indices.is_empty()
+            && self.removed_indexes.is_empty()
+            && self.added_indexes.is_empty()
     }
 }

@@ -1,9 +1,9 @@
 use crate::index::Index;
 use crate::query::filter::Filter;
-use crate::query::key_range::KeyRange;
+use crate::query::where_clause::WhereClause;
 
 pub struct Query<'a> {
-    where_clauses: Vec<(KeyRange, Option<&'a Index>)>,
+    where_clauses: Vec<WhereClause>,
     filter: Option<Filter<'a>>,
 }
 
@@ -15,8 +15,8 @@ impl<'a> Query<'a> {
         }
     }
 
-    pub(crate) fn add_where(&mut self, range: KeyRange, index: Option<&Index>) {
-        self.where_clauses.push((range, index));
+    pub(crate) fn add_where(&mut self, where_clause: WhereClause) {
+        self.where_clauses.push(where_clause);
     }
 
     pub fn set_filter(&mut self, filter: Filter<'a>) {

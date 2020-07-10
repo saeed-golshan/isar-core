@@ -1,4 +1,5 @@
 use crate::bank::IsarBank;
+use crate::data_dbs::{DataDbs, IndexType};
 use crate::error::IsarError::IllegalArgument;
 use crate::error::{illegal_arg, Result};
 use crate::field::{DataType, Field};
@@ -14,7 +15,7 @@ pub struct Schema {
     #[serde(rename = "name")]
     pub bank_name: String,
     pub fields: Vec<SchemaField>,
-    pub indices: Vec<SchemaIndex>,
+    pub indexes: Vec<SchemaIndex>,
 }
 
 #[derive(Ord, PartialOrd, Eq, PartialEq, Serialize, Deserialize, Clone)]
@@ -75,15 +76,15 @@ impl Schema {
             illegal_arg("Fields need to be sorted by data type and by name.")?;
         }
 
-        for index in &self.indices {
+        for index in &self.indexes {
             if index.field_names.is_empty() {
                 illegal_arg("At least one field needs to be added to a valid index.")?;
             } else if index.field_names.len() > 3 {
-                illegal_arg("No more than three fields may be used as a compound index.")?;
+                illegal_arg("No more than three fields may be used as a composite index.")?;
             }
 
             let index_exists = self
-                .indices
+                .indexes
                 .iter()
                 .any(|i| i != index && i.field_names == index.field_names);
             if index_exists {
@@ -108,10 +109,10 @@ impl Schema {
 
             if let Some(hash_value) = index.hash_value {
                 if !has_string_fields {
-                    illegal_arg("Only String indices may use the 'hashValue' parameter.")?;
+                    illegal_arg("Only String indexes may use the 'hashValue' parameter.")?;
                 }
                 if !hash_value && index.field_names.len() > 1 {
-                    illegal_arg("Compound indices need to use String hashes.")?;
+                    illegal_arg("composite indexes need to use String hashes.")?;
                 }
             } else if has_string_fields {
                 illegal_arg(
@@ -125,8 +126,8 @@ impl Schema {
 
     pub fn update_index_ids(&mut self, existing_schema: Option<&Schema>) {
         if let Some(existing_schema) = existing_schema {
-            for old_index in &existing_schema.indices {
-                let index = self.indices.iter_mut().find(|index| {
+            for old_index in &existing_schema.indexes {
+                let index = self.indexes.iter_mut().find(|index| {
                     index.field_names == old_index.field_names
                         && index.unique == old_index.unique
                         && index.hash_value == old_index.hash_value
@@ -138,11 +139,11 @@ impl Schema {
         }
 
         let mut index_ids = self
-            .indices
+            .indexes
             .iter()
             .filter_map(|index| index.id)
             .collect_vec();
-        for mut index in &mut self.indices {
+        for mut index in &mut self.indexes {
             if index.id.is_none() {
                 loop {
                     let id = random();
@@ -156,12 +157,10 @@ impl Schema {
         }
     }
 
-    pub fn to_bank(&self, bank_id: u16, data_db: Db, index_db: Db, index_dup_db: Db) -> IsarBank {
-        let mut fields = self.get_fields();
-
-        let indices = self.get_indices(bank_id, index_db, index_dup_db, &fields);
-
-        IsarBank::new(self.bank_name.clone(), bank_id, fields, indices, data_db)
+    pub fn to_bank(&self, bank_id: u16, dbs: DataDbs) -> IsarBank {
+        let fields = self.get_fields();
+        let indexes = self.get_indexes(bank_id, &fields);
+        IsarBank::new(self.bank_name.clone(), bank_id, fields, indexes, dbs)
     }
 
     fn get_fields(&self) -> Vec<Field> {
@@ -184,14 +183,8 @@ impl Schema {
             .collect()
     }
 
-    fn get_indices(
-        &self,
-        bank_id: u16,
-        index_db: Db,
-        index_dup_db: Db,
-        fields: &[Field],
-    ) -> Vec<Index> {
-        self.indices
+    fn get_indexes(&self, bank_id: u16, fields: &[Field]) -> Vec<Index> {
+        self.indexes
             .iter()
             .map(|index| {
                 let fields = index
@@ -200,14 +193,17 @@ impl Schema {
                     .map(|name| fields.iter().find(|f| f.name == *name).unwrap())
                     .cloned()
                     .collect();
-                let db = if index.unique { index_db } else { index_dup_db };
+                let index_type = if index.unique {
+                    IndexType::Secondary
+                } else {
+                    IndexType::SecondaryDup
+                };
                 Index::new(
                     bank_id,
                     index.id.unwrap(),
                     fields,
-                    index.unique,
+                    index_type,
                     index.hash_value,
-                    db,
                 )
             })
             .collect()

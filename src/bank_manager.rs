@@ -1,28 +1,24 @@
 use crate::bank::IsarBank;
+use crate::data_dbs::DataDbs;
 use crate::error::IsarError::DbCorrupted;
-use crate::error::{corrupted, Result};
+use crate::error::Result;
 use crate::lmdb::db::Db;
 use crate::lmdb::txn::Txn;
 use crate::schema::Schema;
 use rand::random;
-use std::collections::HashMap;
 use std::convert::TryInto;
 
 pub struct BankManager {
     schema_db: Db,
-    data_db: Db,
-    index_db: Db,
-    index_dup_db: Db,
+    data_dbs: DataDbs,
     banks: Vec<IsarBank>,
 }
 
 impl BankManager {
-    pub fn new(schema_db: Db, data_db: Db, index_db: Db, index_dup_db: Db) -> Self {
+    pub fn new(schema_db: Db, data_dbs: DataDbs) -> Self {
         BankManager {
             schema_db,
-            data_db,
-            index_db,
-            index_dup_db,
+            data_dbs,
             banks: vec![],
         }
     }
@@ -45,8 +41,7 @@ impl BankManager {
                     //migrate
                 }
 
-                let bank =
-                    new_schema.to_bank(*bank_id, self.data_db, self.index_db, self.index_dup_db);
+                let bank = new_schema.to_bank(*bank_id, self.data_dbs);
                 self.banks.push(bank);
             } else {
                 new_schema.update_index_ids(None);
@@ -58,8 +53,7 @@ impl BankManager {
             .iter()
             .filter(|(_, s)| !schemas.iter().any(|new| new.bank_name == s.bank_name));
         for (bank_id, unneeded_schema) in unneeded_schemas {
-            let unneeded_bank =
-                unneeded_schema.to_bank(*bank_id, self.data_db, self.index_db, self.index_dup_db);
+            let unneeded_bank = unneeded_schema.to_bank(*bank_id, self.data_dbs);
             unneeded_bank.clear(txn)?;
             eprintln!(
                 "Bank {} is no longer needed and has been deleted.",
@@ -96,7 +90,7 @@ impl BankManager {
         let schema_str = serde_json::to_string(schema).unwrap();
         self.schema_db.put(txn, &id_bytes, schema_str.as_bytes())?;
 
-        let bank = schema.to_bank(bank_id, self.data_db, self.index_db, self.index_dup_db);
+        let bank = schema.to_bank(bank_id, self.data_dbs);
         eprintln!("Bank {} {} has been created.", bank.name, bank.id);
         self.banks.push(bank);
 
@@ -104,14 +98,12 @@ impl BankManager {
     }
 
     fn find_free_bank_id(&self) -> u16 {
-        let mut id = 0u16;
         loop {
-            id = random();
+            let id = random();
             if !self.banks.iter().any(|b| b.id == id) {
-                break;
+                return id;
             }
         }
-        id
     }
 
     pub fn get_bank(&self, bank_index: usize) -> Option<&IsarBank> {
