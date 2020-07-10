@@ -4,7 +4,7 @@ use crate::utils::from_c_str;
 use std::os::raw::c_char;
 
 #[no_mangle]
-pub extern "C" fn isar_create_where_clause(
+pub extern "C" fn isar_wc_create(
     bank: Option<&IsarBank>,
     index: u32,
     lower_key_size: u32,
@@ -19,16 +19,12 @@ pub extern "C" fn isar_create_where_clause(
 }
 
 #[no_mangle]
-pub extern "C" fn isar_where_clause_add_int(
-    where_clause: Option<&mut WhereClause>,
-    lower: bool,
-    value: i64,
-) {
+pub extern "C" fn isar_wc_add_int(where_clause: Option<&mut WhereClause>, lower: bool, value: i64) {
     where_clause.unwrap().add_int(lower, value);
 }
 
 #[no_mangle]
-pub extern "C" fn isar_where_clause_add_double(
+pub extern "C" fn isar_wc_add_double(
     where_clause: Option<&mut WhereClause>,
     lower: bool,
     value: f64,
@@ -37,7 +33,7 @@ pub extern "C" fn isar_where_clause_add_double(
 }
 
 #[no_mangle]
-pub extern "C" fn isar_where_clause_add_bool(
+pub extern "C" fn isar_wc_add_bool(
     where_clause: Option<&mut WhereClause>,
     lower: bool,
     value: bool,
@@ -46,7 +42,7 @@ pub extern "C" fn isar_where_clause_add_bool(
 }
 
 #[no_mangle]
-pub extern "C" fn isar_where_clause_add_string_hash(
+pub extern "C" fn isar_wc_add_string_hash(
     where_clause: Option<&mut WhereClause>,
     lower: bool,
     value: *const c_char,
@@ -56,7 +52,7 @@ pub extern "C" fn isar_where_clause_add_string_hash(
 }
 
 #[no_mangle]
-pub extern "C" fn isar_where_clause_add_string_value(
+pub extern "C" fn isar_wc_add_string_value(
     where_clause: Option<&mut WhereClause>,
     lower: bool,
     value: *const c_char,
