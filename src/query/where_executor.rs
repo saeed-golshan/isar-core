@@ -1,36 +1,38 @@
 use crate::bank::IsarBank;
-use crate::error::Result;
-use crate::index::Index;
-use crate::lmdb::txn::Txn;
-use crate::query::key_range::{KeyRange, KeyRangeIterator};
+use crate::error::IsarError::IllegalState;
+use crate::error::{illegal_state, IsarError, Result};
+use crate::index_dbs::IndexType;
+use crate::lmdb::cursor::Cursor;
+use crate::query::where_clause::WhereClause;
 use std::collections::HashSet;
 
-struct WhereExecutor<'a> {
-    where_clauses: Vec<KeyRange>,
-    index: Option<&'a Index>,
+struct WhereExecutor<'a, 'txn> {
+    where_clauses: &'a [WhereClause],
     bank: &'a IsarBank,
+    primary_cursor: Cursor<'txn>,
+    secondary_cursor: Option<Cursor<'txn>>,
+    secondary_cursor_dup: Option<Cursor<'txn>>,
 }
 
-impl<'a> WhereExecutor<'a> {
-    pub fn new(bank: &'a IsarBank, index: Option<&'a Index>) -> Self {
+impl<'a, 'txn> WhereExecutor<'a, 'txn> {
+    pub fn new(bank: &'a IsarBank, where_clauses: &'a [WhereClause]) -> Self {
         WhereExecutor {
-            where_clauses: vec![],
-            index,
+            where_clauses,
             bank,
+            primary_cursor: None,
+            secondary_cursor: None,
+            secondary_cursor_dup: None,
         }
     }
 
-
-
-    fn run<F>(&self, mut callback: F) -> Result<()>
+    fn run<F>(&mut self, mut callback: F) -> Result<()>
     where
-        F: FnMut(&'trx [u8], &'trx [u8]) -> bool,
+        F: FnMut(&'txn [u8], &'txn [u8]) -> bool,
     {
         match self.where_clauses.len() {
             0 => {
-                let index = self.hive_box.get_primary_index();
-                let range = KeyRange::new(None, None);
-                self.execute_where_clause(&range, &mut None, &mut callback)?;
+                let where_clause = self.bank.new_where_clause(9999, 0, 0);
+                self.execute_where_clause(&where_clause, &mut None, &mut callback)?;
             }
             1 => {
                 let where_clause = self.where_clauses.first().unwrap();
@@ -38,7 +40,7 @@ impl<'a> WhereExecutor<'a> {
             }
             _ => {
                 let mut hash_set = HashSet::new();
-                let mut result_ids = if self.check_where_clauses_overlap() {
+                let mut result_ids = if true/*self.check_where_clauses_overlap()*/ {
                     Some(&mut hash_set)
                 } else {
                     None
@@ -55,70 +57,28 @@ impl<'a> WhereExecutor<'a> {
         Ok(())
     }
 
-    fn execute_no_range<F>(&self, txn: &Txn, mut callback: F) -> Result<()>
-    where
-        F: FnMut(&'trx [u8], &'trx [u8]) -> bool,
-    {
-        let mut range = KeyRange::new(None, None);
-        let iter = self.bank.iter(txn, &mut range)?;
-        self.execute_primary_where_clause(iter, &mut None, &mut callback)?;
-        Ok(())
-    }
-
-    fn execute_single_range<F>(&self, range: &KeyRange, mut callback: F) -> Result<()>
-    where
-        F: FnMut(&'trx [u8], &'trx [u8]) -> bool,
-    {
-        if let Some(index) = self.index
-        let iter = self.bank.iter(txn, &mut range)?;
-        self.execute_primary_where_clause(iter, &mut None, &mut callback)?;
-        Ok(())
-    }
-
-    fn check_where_clauses_overlap(&self) -> bool {
-        for (i1, where_clause1) in self.where_clauses.iter().enumerate() {
-            for (i2, where_clause2) in self.where_clauses.iter().enumerate() {
-                if i1 == i2 {
-                    continue;
-                }
-                if where_clause1.index.id != where_clause2.index.id || where_clause1.is_unbound() {
-                    return false;
-                }
-                if where_clause1.is_unbound_left() && where_clause2.is_unbound_left()
-                    || where_clause1.is_unbound_right() && where_clause2.is_unbound_right()
-                {
-                    return false;
-                }
-                //if where_clause1.lower_key<= where_clause2.lower_key
-            }
-        }
-        true
-    }
-
     fn execute_where_clause(
-        &self,
-        range: &KeyRange,
-        result_ids: &mut Option<&mut HashSet<&'trx [u8]>>,
-        callback: &mut impl FnMut(&'trx [u8], &'trx [u8]) -> bool,
+        &mut self,
+        where_clause: &WhereClause,
+        result_ids: &mut Option<&mut HashSet<&'txn [u8]>>,
+        callback: &mut impl FnMut(&'txn [u8], &'txn [u8]) -> bool,
     ) -> Result<bool> {
-        let mut cursor = self.trx.open_ro_cursor(where_clause.index.db)?;
-        let iter = where_clause.iter(&mut cursor);
-        if where_clause.index.primary {
-            self.execute_primary_where_clause(iter, result_ids, callback)
+        if where_clause.index_type == IndexType::Primary {
+            self.execute_primary_where_clause(where_clause, result_ids, callback)
         } else {
-            self.execute_secondary_where_clause(iter, result_ids, callback)
+            self.execute_secondary_where_clause(where_clause, result_ids, callback)
         }
     }
 
     fn execute_primary_where_clause(
-        &self,
-        txn: &Txn,
-        mut range: KeyRange,
-        result_ids: &mut Option<&mut HashSet<&'trx [u8]>>,
-        callback: &mut impl FnMut(&'trx [u8], &'trx [u8]) -> bool,
+        &mut self,
+        where_clause: &WhereClause,
+        result_ids: &mut Option<&mut HashSet<&'txn [u8]>>,
+        callback: &mut impl FnMut(&'txn [u8], &'txn [u8]) -> bool,
     ) -> Result<bool> {
-        let iter = self.bank.iter(txn,&mut range);
-        for entry in iter.for_each() {
+        let cursor = &mut self.primary_cursor;
+        let iter = where_clause.iter(cursor)?;
+        for entry in iter {
             let (key, val) = entry?;
             if let Some(result_ids) = result_ids {
                 if !result_ids.insert(key) {
@@ -133,13 +93,18 @@ impl<'a> WhereExecutor<'a> {
     }
 
     fn execute_secondary_where_clause(
-        &self,
-        txn: &Txn,
-        mut range: KeyRange,
-        result_ids: &mut Option<&mut HashSet<&'trx [u8]>>,
-        callback: &mut impl FnMut(&'trx [u8], &'trx [u8]) -> bool,
+        &mut self,
+        where_clause: &WhereClause,
+        result_ids: &mut Option<&mut HashSet<&'txn [u8]>>,
+        callback: &mut impl FnMut(&'txn [u8], &'txn [u8]) -> bool,
     ) -> Result<bool> {
-        let iter = self.bank.iter(txn,&mut range);
+        let primary_cursor = &mut self.primary_cursor;
+        let cursor = if where_clause.index_type == IndexType::Secondary {
+            self.secondary_cursor.as_mut().unwrap()
+        } else {
+            self.secondary_cursor_dup.as_mut().unwrap()
+        };
+        let iter = where_clause.iter(cursor)?;
         for index_entry in iter {
             let (_, entry_id) = index_entry?;
             if let Some(result_ids) = result_ids {
@@ -148,13 +113,13 @@ impl<'a> WhereExecutor<'a> {
                 }
             }
 
-            let entry = primary_cursor.get(Some(entry_id), None, MDB_SET_KEY)?;
-            if let (Some(key), val) = entry {
+            let entry = primary_cursor.move_to(entry_id)?;
+            if let Some((key, val)) = entry {
                 if !callback(key, val) {
                     return Ok(false);
                 }
             } else {
-                return Err(Error::Other(111));
+                illegal_state("UNKNOWN!")?;
             }
         }
         Ok(true)

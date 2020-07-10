@@ -1,30 +1,18 @@
-#![feature(type_alias_impl_trait)]
-
+use crate::data_dbs::IndexType;
 use crate::error::Result;
 use crate::index::Index;
-use crate::lmdb::cursor::CursorIterator;
-use crate::lmdb::db::Db;
-use crate::lmdb::txn::Txn;
+use crate::lmdb::cursor::{Cursor, CursorIterator};
 use crate::lmdb::KeyVal;
 
 #[derive(Clone)]
 pub struct WhereClause {
     lower_key: Vec<u8>,
     upper_key: Vec<u8>,
-    db: Db,
-    primary_index: bool,
-    unique: bool,
+    pub index_type: IndexType,
 }
 
 impl WhereClause {
-    pub fn new(
-        prefix: &[u8],
-        lower_size: usize,
-        upper_size: usize,
-        db: Db,
-        primary_index: bool,
-        unique: bool,
-    ) -> Self {
+    pub fn new(prefix: &[u8], lower_size: usize, upper_size: usize, index_type: IndexType) -> Self {
         let mut lower_key = Vec::with_capacity(lower_size + prefix.len());
         lower_key.extend_from_slice(prefix);
         let mut upper_key = Vec::with_capacity(upper_size + prefix.len());
@@ -32,14 +20,15 @@ impl WhereClause {
         WhereClause {
             lower_key,
             upper_key,
-            db,
-            primary_index,
-            unique,
+            index_type,
         }
     }
 
-    pub fn iter<'a, 'txn>(&'a self, txn: &'txn Txn) -> Result<WhereClauseIterator<'a, 'txn>> {
-        WhereClauseIterator::new(&self, txn)
+    pub fn iter<'a, 'txn>(
+        &'a self,
+        cursor: &'a mut Cursor<'txn>,
+    ) -> Result<WhereClauseIterator<'a, 'txn>> {
+        WhereClauseIterator::new(&self, cursor)
     }
 
     pub fn contains(&self, other: &WhereClause) -> bool {
@@ -98,8 +87,7 @@ pub struct WhereClauseIterator<'a, 'txn> {
 }
 
 impl<'a, 'txn> WhereClauseIterator<'a, 'txn> {
-    pub fn new(where_clause: &'a WhereClause, txn: &'txn Txn) -> Result<Self> {
-        let cursor = where_clause.db.cursor(txn)?;
+    pub fn new(where_clause: &'a WhereClause, cursor: &'a mut Cursor<'txn>) -> Result<Self> {
         cursor.move_to_key_greater_than_or_equal_to(&where_clause.lower_key)?;
         Ok(WhereClauseIterator {
             where_clause,
