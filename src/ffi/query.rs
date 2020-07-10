@@ -19,8 +19,17 @@ pub extern "C" fn isar_wc_create(
 }
 
 #[no_mangle]
-pub extern "C" fn isar_wc_add_int(where_clause: Option<&mut WhereClause>, lower: bool, value: i64) {
-    where_clause.unwrap().add_int(lower, value);
+pub extern "C" fn isar_wc_add_int(
+    where_clause: Option<&mut WhereClause>,
+    lower: bool,
+    value: i64,
+    include: bool,
+) {
+    if lower {
+        where_clause.unwrap().add_lower_int(value, include);
+    } else {
+        where_clause.unwrap().add_upper_int(value, include);
+    }
 }
 
 #[no_mangle]
@@ -28,8 +37,13 @@ pub extern "C" fn isar_wc_add_double(
     where_clause: Option<&mut WhereClause>,
     lower: bool,
     value: f64,
+    include: bool,
 ) {
-    where_clause.unwrap().add_double(lower, value);
+    if lower {
+        where_clause.unwrap().add_lower_double(value, include);
+    } else {
+        where_clause.unwrap().add_upper_double(value, include);
+    }
 }
 
 #[no_mangle]
@@ -38,17 +52,20 @@ pub extern "C" fn isar_wc_add_bool(
     lower: bool,
     value: bool,
 ) {
-    where_clause.unwrap().add_bool(lower, value);
+    if lower {
+        where_clause.unwrap().add_lower_bool(value);
+    } else {
+        where_clause.unwrap().add_upper_bool(value);
+    }
 }
 
 #[no_mangle]
 pub extern "C" fn isar_wc_add_string_hash(
     where_clause: Option<&mut WhereClause>,
-    lower: bool,
     value: *const c_char,
 ) {
     let str = from_c_str(value).unwrap();
-    where_clause.unwrap().add_string_hash(lower, str);
+    where_clause.unwrap().add_string_hash(str);
 }
 
 #[no_mangle]
@@ -56,7 +73,12 @@ pub extern "C" fn isar_wc_add_string_value(
     where_clause: Option<&mut WhereClause>,
     lower: bool,
     value: *const c_char,
+    include: bool,
 ) {
     let str = from_c_str(value).unwrap();
-    where_clause.unwrap().add_string_value(lower, str);
+    if lower {
+        where_clause.unwrap().add_lower_string_value(str, include);
+    } else {
+        where_clause.unwrap().add_upper_string_value(str, include);
+    }
 }

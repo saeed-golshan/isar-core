@@ -1,8 +1,9 @@
 use crate::data_dbs::IndexType;
 use crate::error::Result;
-use crate::index::Index;
+use crate::index::{Index, MAX_STRING_INDEX_SIZE};
 use crate::lmdb::cursor::{Cursor, CursorIterator};
 use crate::lmdb::KeyVal;
+use std::convert::TryInto;
 
 #[derive(Clone)]
 pub struct WhereClause {
@@ -35,49 +36,77 @@ impl WhereClause {
         self.lower_key <= other.lower_key && self.upper_key >= other.upper_key
     }
 
-    pub fn add_int(&mut self, lower: bool, value: i64) {
-        let key = if lower {
-            &mut self.lower_key
-        } else {
-            &mut self.upper_key
-        };
-        key.extend_from_slice(&Index::get_int_key(value));
+    pub fn add_lower_int(&mut self, mut value: i64, include: bool) {
+        if !include {
+            value += 1;
+        }
+        self.lower_key.extend_from_slice(&Index::get_int_key(value));
     }
 
-    pub fn add_double(&mut self, lower: bool, value: f64) {
-        let key = if lower {
-            &mut self.lower_key
-        } else {
-            &mut self.upper_key
-        };
-        key.extend_from_slice(&Index::get_double_key(value));
+    pub fn add_upper_int(&mut self, mut value: i64, include: bool) {
+        if !include {
+            value -= 1;
+        }
+        self.upper_key.extend_from_slice(&Index::get_int_key(value));
     }
 
-    pub fn add_bool(&mut self, lower: bool, value: bool) {
-        let key = if lower {
-            &mut self.lower_key
-        } else {
-            &mut self.upper_key
-        };
-        key.extend_from_slice(&Index::get_bool_key(value));
+    pub fn add_lower_double(&mut self, value: f64, include: bool) {
+        let mut key = Index::get_double_key(value);
+        if !include {
+            let u64_key = u64::from_be_bytes(key.as_slice().try_into().unwrap());
+            key = u64::to_be_bytes(u64_key + 1).to_vec();
+        }
+        self.lower_key.extend_from_slice(&key);
     }
 
-    pub fn add_string_hash(&mut self, lower: bool, value: &str) {
-        let key = if lower {
-            &mut self.lower_key
-        } else {
-            &mut self.upper_key
-        };
-        key.extend_from_slice(&Index::get_string_hash_key(value.as_bytes()));
+    pub fn add_upper_double(&mut self, value: f64, include: bool) {
+        let mut key = Index::get_double_key(value);
+        if !include {
+            let u64_key = u64::from_be_bytes(key.as_slice().try_into().unwrap());
+            key = u64::to_be_bytes(u64_key - 1).to_vec();
+        }
+        self.upper_key.extend_from_slice(&key);
     }
 
-    pub fn add_string_value(&mut self, lower: bool, value: &str) {
-        let key = if lower {
-            &mut self.lower_key
-        } else {
-            &mut self.upper_key
-        };
-        key.extend_from_slice(&Index::get_string_value_key(value.as_bytes()));
+    pub fn add_lower_bool(&mut self, value: bool) {
+        self.lower_key
+            .extend_from_slice(&Index::get_bool_key(value));
+    }
+
+    pub fn add_upper_bool(&mut self, value: bool) {
+        self.upper_key
+            .extend_from_slice(&Index::get_bool_key(value));
+    }
+
+    pub fn add_string_hash(&mut self, value: &str) {
+        let hash = Index::get_string_hash_key(value.as_bytes());
+        self.lower_key.extend_from_slice(&hash);
+        self.upper_key.extend_from_slice(&hash);
+    }
+
+    pub fn add_lower_string_value(&mut self, value: &str, include: bool) {
+        let str_bytes = value.as_bytes();
+        let mut bytes = Index::get_string_value_key(str_bytes);
+
+        if !include {
+            assert!(str_bytes.len() < MAX_STRING_INDEX_SIZE);
+            bytes[bytes.len() - 1] += 1;
+        }
+
+        self.lower_key.extend_from_slice(&bytes);
+    }
+
+    pub fn add_upper_string_value(&mut self, value: &str, include: bool) {
+        let str_bytes = value.as_bytes();
+        let mut bytes = Index::get_string_value_key(str_bytes);
+
+        if !include {
+            assert!(str_bytes.len() < MAX_STRING_INDEX_SIZE);
+            assert!(str_bytes.len() > 0);
+            bytes[bytes.len() - 1] -= 1;
+        }
+
+        self.upper_key.extend_from_slice(&bytes);
     }
 }
 

@@ -3,7 +3,7 @@ use crate::field::{DataType, Field};
 use std::mem::transmute;
 use wyhash::wyhash;
 
-const MAX_STRING_INDEX_SIZE: usize = 1500;
+pub const MAX_STRING_INDEX_SIZE: usize = 1500;
 
 #[derive(Clone)]
 pub struct Index {
