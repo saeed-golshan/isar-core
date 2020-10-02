@@ -1,24 +1,24 @@
-use crate::bank::IsarBank;
+use crate::collection::IsarCollection;
+use crate::data_dbs::IndexType;
 use crate::error::IsarError::IllegalState;
 use crate::error::{illegal_state, IsarError, Result};
-use crate::index_dbs::IndexType;
 use crate::lmdb::cursor::Cursor;
 use crate::query::where_clause::WhereClause;
 use std::collections::HashSet;
 
 struct WhereExecutor<'a, 'txn> {
     where_clauses: &'a [WhereClause],
-    bank: &'a IsarBank,
+    collection: &'a IsarCollection,
     primary_cursor: Cursor<'txn>,
     secondary_cursor: Option<Cursor<'txn>>,
     secondary_cursor_dup: Option<Cursor<'txn>>,
 }
 
 impl<'a, 'txn> WhereExecutor<'a, 'txn> {
-    pub fn new(bank: &'a IsarBank, where_clauses: &'a [WhereClause]) -> Self {
+    pub fn new(collection: &'a IsarCollection, where_clauses: &'a [WhereClause]) -> Self {
         WhereExecutor {
             where_clauses,
-            bank,
+            collection,
             primary_cursor: None,
             secondary_cursor: None,
             secondary_cursor_dup: None,
@@ -31,7 +31,7 @@ impl<'a, 'txn> WhereExecutor<'a, 'txn> {
     {
         match self.where_clauses.len() {
             0 => {
-                let where_clause = self.bank.new_where_clause(9999, 0, 0);
+                let where_clause = self.collection.new_where_clause(9999, 0, 0);
                 self.execute_where_clause(&where_clause, &mut None, &mut callback)?;
             }
             1 => {
@@ -98,7 +98,6 @@ impl<'a, 'txn> WhereExecutor<'a, 'txn> {
         result_ids: &mut Option<&mut HashSet<&'txn [u8]>>,
         callback: &mut impl FnMut(&'txn [u8], &'txn [u8]) -> bool,
     ) -> Result<bool> {
-        let primary_cursor = &mut self.primary_cursor;
         let cursor = if where_clause.index_type == IndexType::Secondary {
             self.secondary_cursor.as_mut().unwrap()
         } else {
@@ -113,7 +112,7 @@ impl<'a, 'txn> WhereExecutor<'a, 'txn> {
                 }
             }
 
-            let entry = primary_cursor.move_to(entry_id)?;
+            let entry = self.primary_cursor.move_to(entry_id)?;
             if let Some((key, val)) = entry {
                 if !callback(key, val) {
                     return Ok(false);

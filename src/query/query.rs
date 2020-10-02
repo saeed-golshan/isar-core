@@ -1,13 +1,19 @@
+use crate::data_dbs::IndexType;
 use crate::index::Index;
 use crate::query::filter::Filter;
 use crate::query::where_clause::WhereClause;
+use itertools::Itertools;
+use std::borrow::Borrow;
+use std::cell::Cell;
+use std::cmp::max;
+use std::ops::Deref;
 
-pub struct Query<'a> {
+pub struct Query {
     where_clauses: Vec<WhereClause>,
-    filter: Option<Filter<'a>>,
+    filter: Option<Filter>,
 }
 
-impl<'a> Query<'a> {
+impl Query {
     pub(crate) fn new() -> Self {
         Query {
             where_clauses: Vec::new(),
@@ -19,7 +25,7 @@ impl<'a> Query<'a> {
         self.where_clauses.push(where_clause);
     }
 
-    pub fn set_filter(&mut self, filter: Filter<'a>) {
+    pub fn set_filter(&mut self, filter: Filter) {
         self.filter = Some(filter);
     }
 

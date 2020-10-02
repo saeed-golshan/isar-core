@@ -7,8 +7,8 @@ use std::convert::TryInto;
 
 #[derive(Clone)]
 pub struct WhereClause {
-    lower_key: Vec<u8>,
-    upper_key: Vec<u8>,
+    pub lower_key: Vec<u8>,
+    pub upper_key: Vec<u8>,
     pub index_type: IndexType,
 }
 
@@ -90,7 +90,8 @@ impl WhereClause {
 
         if !include {
             assert!(str_bytes.len() < MAX_STRING_INDEX_SIZE);
-            bytes[bytes.len() - 1] += 1;
+            let bytes_len = bytes.len();
+            bytes[bytes_len - 1] += 1;
         }
 
         self.lower_key.extend_from_slice(&bytes);
@@ -103,7 +104,8 @@ impl WhereClause {
         if !include {
             assert!(str_bytes.len() < MAX_STRING_INDEX_SIZE);
             assert!(str_bytes.len() > 0);
-            bytes[bytes.len() - 1] -= 1;
+            let bytes_len = bytes.len();
+            bytes[bytes_len - 1] -= 1;
         }
 
         self.upper_key.extend_from_slice(&bytes);
@@ -112,7 +114,7 @@ impl WhereClause {
 
 pub struct WhereClauseIterator<'a, 'txn> {
     where_clause: &'a WhereClause,
-    iter: CursorIterator<'txn>,
+    iter: CursorIterator<'a, 'txn>,
 }
 
 impl<'a, 'txn> WhereClauseIterator<'a, 'txn> {

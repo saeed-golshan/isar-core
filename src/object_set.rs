@@ -2,8 +2,11 @@ use crate::object_id::ObjectId;
 use std::{ptr, slice};
 
 #[repr(C)]
+pub struct RawOid(u32, u64);
+
+#[repr(C)]
 pub struct RawObject {
-    oid: u64,
+    oid: RawOid,
     data: *const u8,
     data_length: u32,
 }
@@ -11,11 +14,10 @@ pub struct RawObject {
 impl RawObject {
     pub fn new(oid: &ObjectId, object: &[u8]) -> Self {
         let mut obj = RawObject {
-            oid: 0,
+            oid: RawOid(oid.get_time(), oid.get_rand_counter()),
             data: ptr::null(),
             data_length: 0,
         };
-        obj.set_object_id(oid);
         obj.set_object(object);
         obj
     }
@@ -28,11 +30,11 @@ impl RawObject {
     }
 
     pub fn set_object_id(&mut self, oid: &ObjectId) {
-        self.oid = oid.0;
+        self.oid = RawOid(oid.get_time(), oid.get_rand_counter());
     }
 
     pub fn set_empty(&mut self) {
-        self.oid = 0;
+        self.oid = RawOid(0, 0);
         self.data = ptr::null();
         self.data_length = 0;
     }
@@ -42,8 +44,8 @@ impl RawObject {
     }
 
     pub fn get_object_id(&self) -> Option<ObjectId> {
-        if self.oid != 0 {
-            Some(ObjectId::new(self.oid))
+        if self.oid.0 != 0 {
+            Some(ObjectId::new(self.oid.0, self.oid.1))
         } else {
             None
         }
@@ -66,7 +68,7 @@ impl ObjectSet {
         }
     }
 
-    pub fn get_object(&self, index: u32) -> Option<(u64, &[u8])> {
+    /*pub fn get_object(&self, index: u32) -> Option<(u64, &[u8])> {
         if self.length > index {
             let object = unsafe { &*self.objects.offset(index as isize) };
             let slice = object.object_as_slice();
@@ -81,7 +83,7 @@ impl ObjectSet {
             let object = unsafe { &mut *self.objects.offset(index as isize) };
             object.oid = oid;
         }
-    }
+    }*/
 
     pub fn length(&self) -> u32 {
         self.length

@@ -8,7 +8,7 @@ use lmdb_sys as ffi;
 use lmdb_sys::MDB_val;
 use std::marker::PhantomData;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Cursor<'txn> {
     cursor: *mut ffi::MDB_cursor,
     _marker: PhantomData<fn() -> &'txn ()>,
@@ -98,7 +98,7 @@ impl<'txn> Cursor<'txn> {
         Ok(())
     }
 
-    pub fn delete_key_prefix(&mut self, key_prefix: &[u8]) -> Result<()> {
+    pub fn delete_key_prefix(&self, key_prefix: &[u8]) -> Result<()> {
         self.move_to_key_greater_than_or_equal_to(key_prefix)?;
         for item in self.iter() {
             let (key, _) = item?;
@@ -111,16 +111,12 @@ impl<'txn> Cursor<'txn> {
         Ok(())
     }
 
-    pub fn iter(&self) -> CursorIterator<'txn> {
-        CursorIterator::new(self.clone(), ffi::MDB_GET_CURRENT, ffi::MDB_NEXT)
+    pub fn iter<'a>(&'a self) -> CursorIterator<'a, 'txn> {
+        CursorIterator::new(self, ffi::MDB_GET_CURRENT, ffi::MDB_NEXT)
     }
 
-    pub fn iter_from_first(&self) -> CursorIterator<'txn> {
-        CursorIterator::new(self.clone(), ffi::MDB_FIRST, ffi::MDB_NEXT)
-    }
-
-    pub fn iter_dup(&self) -> CursorIterator<'txn> {
-        CursorIterator::new(self.clone(), ffi::MDB_GET_CURRENT, ffi::MDB_NEXT_DUP)
+    pub fn iter_from_first<'a>(&'a self) -> CursorIterator<'a, 'txn> {
+        CursorIterator::new(self, ffi::MDB_FIRST, ffi::MDB_NEXT)
     }
 }
 
@@ -131,9 +127,9 @@ impl<'txn> Drop for Cursor<'txn> {
 }
 
 /// An iterator over the key/value pairs in an LMDB database.
-pub struct CursorIterator<'txn> {
+pub struct CursorIterator<'a, 'txn> {
     /// The LMDB cursor with which to iterate.
-    cursor: Cursor<'txn>,
+    cursor: &'a Cursor<'txn>,
 
     /// The first operation to perform when the consumer calls Iter.next().
     op: u32,
@@ -145,9 +141,9 @@ pub struct CursorIterator<'txn> {
     _marker: PhantomData<fn(&'txn ())>,
 }
 
-impl<'txn> CursorIterator<'txn> {
+impl<'a, 'txn> CursorIterator<'a, 'txn> {
     /// Creates a new iterator backed by the given cursor.
-    fn new(cursor: Cursor<'txn>, op: u32, next_op: u32) -> Self {
+    fn new(cursor: &'a Cursor<'txn>, op: u32, next_op: u32) -> Self {
         CursorIterator {
             cursor,
             op,
@@ -157,7 +153,7 @@ impl<'txn> CursorIterator<'txn> {
     }
 }
 
-impl<'txn> Iterator for CursorIterator<'txn> {
+impl<'a, 'txn> Iterator for CursorIterator<'a, 'txn> {
     type Item = Result<KeyVal<'txn>>;
 
     fn next(&mut self) -> Option<Result<KeyVal<'txn>>> {

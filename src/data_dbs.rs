@@ -5,14 +5,16 @@ pub struct DataDbs {
     pub primary: Db,
     pub secondary: Db,
     pub secondary_dup: Db,
+    pub links: Db,
 }
 
 impl DataDbs {
-    pub fn new(primary: Db, secondary: Db, secondary_dup: Db) -> Self {
+    pub fn new(primary: Db, secondary: Db, secondary_dup: Db, links: Db) -> Self {
         DataDbs {
             primary,
             secondary,
             secondary_dup,
+            links,
         }
     }
 
@@ -21,6 +23,7 @@ impl DataDbs {
             IndexType::Primary => self.primary,
             IndexType::Secondary => self.secondary,
             IndexType::SecondaryDup => self.secondary_dup,
+            IndexType::Links => self.links,
         }
     }
 }
@@ -30,4 +33,5 @@ pub enum IndexType {
     Primary,
     Secondary,
     SecondaryDup,
+    Links,
 }

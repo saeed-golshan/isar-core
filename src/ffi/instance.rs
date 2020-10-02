@@ -1,4 +1,4 @@
-use crate::bank::IsarBank;
+use crate::collection::IsarCollection;
 use crate::error::illegal_arg;
 use crate::instance::IsarInstance;
 use crate::utils::from_c_str;
@@ -21,15 +21,15 @@ pub unsafe extern "C" fn isar_create_instance(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn isar_get_bank<'a>(
+pub unsafe extern "C" fn isar_get_collection<'a>(
     isar: Option<&'a IsarInstance>,
-    bank: *mut &'a IsarBank,
+    collection: *mut &'a IsarCollection,
     index: u32,
 ) -> u8 {
     isar_try! {
-        let new_bank = isar.unwrap().get_bank(index as usize);
-        if let Some(new_bank) = new_bank {
-            bank.write(new_bank);
+        let new_collection = isar.unwrap().get_collection(index as usize);
+        if let Some(new_collection) = new_collection {
+            collection.write(new_collection);
         } else {
             illegal_arg("Provided index is invalid.")?;
         }

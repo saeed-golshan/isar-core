@@ -72,6 +72,15 @@ impl Db {
         };
     }
 
+    pub fn put_no_dup_data(&self, txn: &Txn, key: &[u8], data: &[u8]) -> Result<bool> {
+        let result = self.put_internal(txn, key, data, ffi::MDB_NODUPDATA);
+        return match result {
+            Ok(()) => Ok(true),
+            Err(LmdbError::KeyExist) => Ok(false),
+            Err(e) => Err(e)?,
+        };
+    }
+
     fn put_internal(
         &self,
         txn: &Txn,
@@ -208,7 +217,7 @@ mod tests {
         {
             let mut cur = db.cursor(&txn).unwrap();
             assert_eq!(cur.set(b"key2").unwrap(), true);
-            let iter = cur.iter_dup();
+            //let iter = cur.iter_dup();
             //let vals = iter.map(|x| x.1).collect_vec();
             //assert!(iter.error.is_none());
             //assert_eq!(vals, vec![b"val4", b"val5", b"val6"]);

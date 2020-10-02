@@ -7,7 +7,7 @@ pub const MAX_STRING_INDEX_SIZE: usize = 1500;
 
 #[derive(Clone)]
 pub struct Index {
-    id: u32,
+    id: u16,
     fields: Vec<Field>,
     index_type: IndexType,
     hash_value: Option<bool>,
@@ -15,13 +15,11 @@ pub struct Index {
 
 impl Index {
     pub(crate) fn new(
-        bank_id: u16,
         id: u16,
         fields: Vec<Field>,
         index_type: IndexType,
         hash_value: Option<bool>,
     ) -> Self {
-        let id = (bank_id as u32) << 16 | id as u32;
         Index {
             id,
             fields,
@@ -30,8 +28,8 @@ impl Index {
         }
     }
 
-    pub fn get_prefix(&self) -> [u8; 4] {
-        u32::to_le_bytes(self.id)
+    pub fn get_prefix(&self) -> [u8; 2] {
+        u16::to_le_bytes(self.id)
     }
 
     pub fn get_type(&self) -> IndexType {

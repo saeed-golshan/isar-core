@@ -2,6 +2,7 @@ use crate::error::{IsarError, Result};
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 
+pub mod mockable_rand;
 pub mod mockable_time;
 
 pub fn from_c_str<'a>(str: *const c_char) -> Result<&'a str> {

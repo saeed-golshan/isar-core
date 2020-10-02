@@ -1,12 +1,11 @@
-use crate::bank::IsarBank;
-use crate::bank_manager::BankManager;
+use crate::collection::IsarCollection;
 use crate::data_dbs::DataDbs;
 use crate::error::IsarError::VersionError;
 use crate::error::*;
 use crate::lmdb::db::Db;
 use crate::lmdb::env::Env;
 use crate::lmdb::txn::Txn;
-use crate::schema::Schema;
+use crate::schema::schema::Schema;
 use std::convert::TryInto;
 
 pub const ISAR_VERSION: u32 = 1;
@@ -14,60 +13,51 @@ pub const ISAR_VERSION: u32 = 1;
 pub struct IsarInstance {
     env: Env,
     info_db: Db,
-    bank_manager: BankManager,
+    collections: Vec<IsarCollection>,
     path: String,
 }
 
 impl IsarInstance {
-    pub fn create(path: &str, max_size: u32, schemas_json: &str) -> Result<Self> {
-        let schemas = Schema::schemas_from_json(schemas_json)?;
+    pub fn create(path: &str, max_size: u32, schema_json: &str) -> Result<Self> {
+        let schema = Schema::schema_from_json(schema_json)?;
 
         let env = Env::create(path, 5, max_size)?;
-        let (info_db, schema_db, data_dbs) = IsarInstance::open_databases(&env)?;
+        let (info_db, data_dbs) = IsarInstance::open_databases(&env)?;
 
         let txn = env.txn(true)?;
-        Self::migrate_isar_database(&txn, info_db, schema_db, data_dbs)?;
+        Self::migrate_isar_database(&txn, info_db, data_dbs)?;
         txn.commit()?;
 
-        let mut bank_manager = BankManager::new(schema_db, data_dbs);
-
-        let txn = env.txn(true)?;
-        bank_manager.init(&txn, schemas)?;
-        txn.commit()?;
+        let collections = vec![];
 
         Ok(IsarInstance {
             env,
             info_db,
-            bank_manager,
+            collections,
             path: path.to_string(),
         })
     }
 
-    fn open_databases(env: &Env) -> Result<(Db, Db, DataDbs)> {
+    fn open_databases(env: &Env) -> Result<(Db, DataDbs)> {
         let txn = env.txn(true)?;
         let info = Db::open(&txn, "info", false, false, false)?;
-        let schema = Db::open(&txn, "schema", false, false, false)?;
         let primary = Db::open(&txn, "data", true, false, false)?;
         let secondary = Db::open(&txn, "index", false, false, true)?;
         let secondary_dup = Db::open(&txn, "index_dup", false, true, true)?;
+        let links = Db::open(&txn, "links", true, true, true)?;
         txn.commit()?;
         Ok((
             info,
-            schema,
             DataDbs {
                 primary,
                 secondary,
                 secondary_dup,
+                links,
             },
         ))
     }
 
-    fn migrate_isar_database(
-        txn: &Txn,
-        info_db: Db,
-        schema_db: Db,
-        data_dbs: DataDbs,
-    ) -> Result<()> {
+    fn migrate_isar_database(txn: &Txn, info_db: Db, data_dbs: DataDbs) -> Result<()> {
         let version = info_db.get(&txn, b"version")?;
         if let Some(version) = version {
             let version_number = u32::from_le_bytes(version.try_into().unwrap());
@@ -87,7 +77,7 @@ impl IsarInstance {
         self.env.txn(write)
     }
 
-    pub fn get_bank(&self, bank_index: usize) -> Option<&IsarBank> {
-        self.bank_manager.get_bank(bank_index)
+    pub fn get_collection(&self, collection_index: usize) -> Option<&IsarCollection> {
+        self.collections.get(collection_index)
     }
 }
