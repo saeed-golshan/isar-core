@@ -1,27 +1,28 @@
-use crate::collection::IsarCollection;
 use crate::data_dbs::IndexType;
-use crate::error::IsarError::IllegalState;
-use crate::error::{illegal_state, IsarError, Result};
+use crate::error::{illegal_state, Result};
 use crate::lmdb::cursor::Cursor;
 use crate::query::where_clause::WhereClause;
 use std::collections::HashSet;
 
 struct WhereExecutor<'a, 'txn> {
     where_clauses: &'a [WhereClause],
-    collection: &'a IsarCollection,
     primary_cursor: Cursor<'txn>,
     secondary_cursor: Option<Cursor<'txn>>,
     secondary_cursor_dup: Option<Cursor<'txn>>,
 }
 
 impl<'a, 'txn> WhereExecutor<'a, 'txn> {
-    pub fn new(collection: &'a IsarCollection, where_clauses: &'a [WhereClause]) -> Self {
+    pub fn new(
+        primary_cursor: Cursor<'txn>,
+        secondary_cursor: Option<Cursor<'txn>>,
+        secondary_cursor_dup: Option<Cursor<'txn>>,
+        where_clauses: &'a [WhereClause],
+    ) -> Self {
         WhereExecutor {
             where_clauses,
-            collection,
-            primary_cursor: None,
-            secondary_cursor: None,
-            secondary_cursor_dup: None,
+            primary_cursor,
+            secondary_cursor,
+            secondary_cursor_dup,
         }
     }
 
@@ -30,17 +31,13 @@ impl<'a, 'txn> WhereExecutor<'a, 'txn> {
         F: FnMut(&'txn [u8], &'txn [u8]) -> bool,
     {
         match self.where_clauses.len() {
-            0 => {
-                let where_clause = self.collection.new_where_clause(9999, 0, 0);
-                self.execute_where_clause(&where_clause, &mut None, &mut callback)?;
-            }
             1 => {
                 let where_clause = self.where_clauses.first().unwrap();
                 self.execute_where_clause(&where_clause, &mut None, &mut callback)?;
             }
             _ => {
                 let mut hash_set = HashSet::new();
-                let mut result_ids = if true/*self.check_where_clauses_overlap()*/ {
+                let mut result_ids = if self.check_where_clauses_overlap() {
                     Some(&mut hash_set)
                 } else {
                     None
