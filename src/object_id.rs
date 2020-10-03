@@ -1,32 +1,37 @@
-use crate::error::IsarError;
-use crate::error::Result;
-use crate::utils::mockable_rand::random;
-use crate::utils::mockable_time::time_now;
+use crate::utils::seconds_since_epoch;
 use std::convert::TryInto;
-use std::time::UNIX_EPOCH;
 
 pub struct ObjectIdGenerator {
     counter: u16,
+    time: fn() -> u64,
+    random: fn() -> u64,
 }
 
 impl ObjectIdGenerator {
     pub fn new(counter: u16) -> Self {
-        ObjectIdGenerator { counter }
+        ObjectIdGenerator {
+            counter,
+            time: seconds_since_epoch,
+            random: rand::random,
+        }
     }
 
-    pub fn generate(&mut self) -> Result<ObjectId> {
-        let time = time_now()
-            .duration_since(UNIX_EPOCH)
-            .map_err(|e| IsarError::Error {
-                source: Some(Box::new(e)),
-                message: "Could not acquire system time.".to_string(),
-            })?
-            .as_secs();
-        let random_number: u64 = random();
+    #[cfg(test)]
+    pub fn new_debug(counter: u16, time: fn() -> u64, random: fn() -> u64) -> Self {
+        ObjectIdGenerator {
+            counter,
+            time,
+            random,
+        }
+    }
+
+    pub fn generate(&mut self) -> ObjectId {
+        let time = (self.time)();
+        let random_number: u64 = (self.random)();
         let rand_counter = random_number << 16 | self.counter as u64;
         self.counter = self.counter.wrapping_add(1);
 
-        Ok(ObjectId::new((time & 0xFFFFFFFF) as u32, rand_counter))
+        ObjectId::new((time & 0xFFFFFFFF) as u32, rand_counter)
     }
 }
 
@@ -79,27 +84,21 @@ impl ObjectId {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::mockable_time::mock_time::set_mock_time;
-    use std::ops::Add;
-    use std::time::Duration;
 
     #[test]
     fn test_object_id_generator_generate() {
-        let fake_time = UNIX_EPOCH.add(Duration::from_secs(1231231231));
-        set_mock_time(Some(fake_time));
+        let mut oidg = ObjectIdGenerator::new_debug(555, || 1231231231, || 12345);
 
-        let mut oidg = ObjectIdGenerator::new(555);
-
-        let oid = oidg.generate().unwrap();
+        let oid = oidg.generate();
         assert_eq!(oid.get_time(), 1231231231);
-        assert_eq!(oid.get_rand_counter(), 65534);
+        assert_eq!(oid.get_rand_counter(), 809042475);
 
-        let oid = oidg.generate().unwrap();
+        let oid = oidg.generate();
         assert_eq!(oid.get_time(), 1231231231);
-        assert_eq!(oid.get_rand_counter(), 65535);
+        assert_eq!(oid.get_rand_counter(), 809042476);
 
-        let oid = oidg.generate().unwrap();
+        let oid = oidg.generate();
         assert_eq!(oid.get_time(), 1231231231);
-        assert_eq!(oid.get_rand_counter(), 65535);
+        assert_eq!(oid.get_rand_counter(), 809042477);
     }
 }

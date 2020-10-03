@@ -5,7 +5,6 @@ use crate::error::*;
 use crate::lmdb::db::Db;
 use crate::lmdb::env::Env;
 use crate::lmdb::txn::Txn;
-use crate::schema::schema::Schema;
 use std::convert::TryInto;
 
 pub const ISAR_VERSION: u32 = 1;
@@ -18,8 +17,8 @@ pub struct IsarInstance {
 }
 
 impl IsarInstance {
-    pub fn create(path: &str, max_size: u32, schema_json: &str) -> Result<Self> {
-        let schema = Schema::schema_from_json(schema_json)?;
+    pub fn create(path: &str, max_size: u32, _schema_json: &str) -> Result<Self> {
+        //let schema = Schema::schema_from_json(schema_json)?;
 
         let env = Env::create(path, 5, max_size)?;
         let (info_db, data_dbs) = IsarInstance::open_databases(&env)?;
@@ -57,7 +56,7 @@ impl IsarInstance {
         ))
     }
 
-    fn migrate_isar_database(txn: &Txn, info_db: Db, data_dbs: DataDbs) -> Result<()> {
+    fn migrate_isar_database(txn: &Txn, info_db: Db, _data_dbs: DataDbs) -> Result<()> {
         let version = info_db.get(&txn, b"version")?;
         if let Some(version) = version {
             let version_number = u32::from_le_bytes(version.try_into().unwrap());

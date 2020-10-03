@@ -1,4 +1,4 @@
-use crate::error::{IsarError, Result};
+use crate::error::Result;
 use crate::lmdb::error::{lmdb_result, LmdbError};
 use crate::lmdb::txn::Txn;
 use crate::utils::to_c_str;
@@ -73,8 +73,6 @@ pub mod tests {
     use tempdir::TempDir;
 
     use super::*;
-    use crate::lmdb::db::Db;
-    use lmdb_sys::mdb_env_get_maxkeysize;
 
     #[test]
     fn test_create() {

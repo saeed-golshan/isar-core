@@ -37,7 +37,7 @@ impl<'a, 'txn> WhereExecutor<'a, 'txn> {
             }
             _ => {
                 let mut hash_set = HashSet::new();
-                let mut result_ids = if self.check_where_clauses_overlap() {
+                let mut result_ids = if true/*self.check_where_clauses_overlap()*/ {
                     Some(&mut hash_set)
                 } else {
                     None

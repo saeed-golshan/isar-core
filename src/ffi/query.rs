@@ -7,14 +7,8 @@ use std::os::raw::c_char;
 pub extern "C" fn isar_wc_create(
     collection: Option<&IsarCollection>,
     index: u32,
-    lower_key_size: u32,
-    upper_key_size: u32,
 ) -> *mut WhereClause {
-    let where_clause = collection.unwrap().new_where_clause(
-        index as usize,
-        lower_key_size as usize,
-        upper_key_size as usize,
-    );
+    let where_clause = collection.unwrap().create_where_clause(index as usize);
     Box::into_raw(Box::new(where_clause))
 }
 

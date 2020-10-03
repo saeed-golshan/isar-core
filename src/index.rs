@@ -1,5 +1,10 @@
 use crate::data_dbs::IndexType;
+use crate::error::Result;
 use crate::field::{DataType, Field};
+use crate::lmdb::db::Db;
+use crate::lmdb::txn::Txn;
+use crate::object_id::ObjectId;
+use crate::query::where_clause::WhereClause;
 use std::mem::transmute;
 use wyhash::wyhash;
 
@@ -11,6 +16,7 @@ pub struct Index {
     fields: Vec<Field>,
     index_type: IndexType,
     hash_value: Option<bool>,
+    db: Db,
 }
 
 impl Index {
@@ -19,24 +25,46 @@ impl Index {
         fields: Vec<Field>,
         index_type: IndexType,
         hash_value: Option<bool>,
+        db: Db,
     ) -> Self {
         Index {
             id,
             fields,
             index_type,
             hash_value,
+            db,
         }
     }
 
-    pub fn get_prefix(&self) -> [u8; 2] {
+    fn get_prefix(&self) -> [u8; 2] {
         u16::to_le_bytes(self.id)
     }
 
-    pub fn get_type(&self) -> IndexType {
-        IndexType::Secondary
+    pub fn create_for_object(&self, txn: &Txn, oid: ObjectId, object: &[u8]) -> Result<()> {
+        let index_key = self.create_key(object);
+        let oid_bytes = oid.to_bytes();
+        self.db.put(txn, &index_key, oid_bytes)
     }
 
-    pub fn create_key(&self, object: &[u8]) -> Vec<u8> {
+    pub fn delete_for_object(&self, txn: &Txn, oid: ObjectId, object: &[u8]) -> Result<()> {
+        let index_key = self.create_key(object);
+        let oid_bytes = oid.to_bytes();
+        if self.index_type == IndexType::SecondaryDup {
+            self.db.delete(txn, &index_key, Some(oid_bytes))
+        } else {
+            self.db.delete(txn, &index_key, None)
+        }
+    }
+
+    pub fn clear(&self, txn: &Txn) -> Result<()> {
+        self.db.cursor(txn)?.delete_key_prefix(&self.get_prefix())
+    }
+
+    pub fn create_where_clause(&self) -> WhereClause {
+        WhereClause::new(&self.get_prefix(), self.index_type)
+    }
+
+    fn create_key(&self, object: &[u8]) -> Vec<u8> {
         let mut bytes = self.get_prefix().to_vec();
         if let Some(true) = self.hash_value {
             let field = self.fields.first().unwrap();
@@ -115,7 +143,6 @@ impl Index {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::field::{DataType, Field};
 
     #[test]
     fn test_get_int_key() {

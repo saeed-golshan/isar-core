@@ -1,9 +1,7 @@
 use crate::error::{IsarError, Result};
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
-
-pub mod mockable_rand;
-pub mod mockable_time;
+use time::OffsetDateTime;
 
 pub fn from_c_str<'a>(str: *const c_char) -> Result<&'a str> {
     let result = unsafe { CStr::from_ptr(str).to_str() };
@@ -25,4 +23,8 @@ pub fn to_c_str(str: &str) -> Result<CString> {
             message: "The provided String is not valid.".to_string(),
         }),
     }
+}
+
+pub fn seconds_since_epoch() -> u64 {
+    OffsetDateTime::now_utc().timestamp() as u64
 }

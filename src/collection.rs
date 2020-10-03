@@ -1,4 +1,4 @@
-use crate::data_dbs::{DataDbs, IndexType};
+use crate::data_dbs::IndexType;
 use crate::error::{illegal_arg, illegal_state, Result};
 use crate::field::Field;
 use crate::index::Index;
@@ -7,7 +7,7 @@ use crate::lmdb::db::Db;
 use crate::lmdb::txn::Txn;
 use crate::object_id::{ObjectId, ObjectIdGenerator};
 use crate::query::where_clause::WhereClause;
-use crate::utils::mockable_rand::random;
+use rand::random;
 
 pub struct IsarCollection {
     pub name: String,
@@ -74,7 +74,7 @@ impl IsarCollection {
             }
             oid
         } else {
-            self.oidg.generate()?
+            self.oidg.generate()
         };
 
         if !self.verify_object(object) {
@@ -83,11 +83,9 @@ impl IsarCollection {
 
         let oid_bytes = oid.to_bytes_with_prefix(self.id);
 
-        /*for index in &self.indexes {
-            let index_db = self.dbs.get(index.get_type());
-            let index_key = index.create_key(object);
-            index_db.put(txn, &index_key, &oid_bytes)?;
-        }*/
+        for index in &self.indexes {
+            index.create_for_object(txn, oid, object)?;
+        }
 
         self.primary_db.put(txn, &oid_bytes, object)?;
         Ok(oid)
@@ -102,31 +100,21 @@ impl IsarCollection {
     }
 
     pub fn clear(&self, txn: &Txn) -> Result<()> {
-        /*for index in &self.indexes {
-            let index_db = self.dbs.get(index.get_type());
-            let mut cursor = index_db.cursor(txn)?;
-            cursor.delete_key_prefix(&index.get_prefix())?;
-        }*/
-        let mut cursor = self.primary_db.cursor(txn)?;
+        for index in &self.indexes {
+            index.clear(txn)?;
+        }
+        let cursor = self.primary_db.cursor(txn)?;
         cursor.delete_key_prefix(&self.get_prefix())?;
 
         Ok(())
     }
 
-    pub fn new_where_clause(
-        &self,
-        index: usize,
-        lower_size: usize,
-        upper_size: usize,
-    ) -> WhereClause {
-        let index = self.indexes.get(index);
-        let (prefix, index_type) = if let Some(index) = index {
-            (index.get_prefix().to_vec(), index.get_type())
+    pub fn create_where_clause(&self, index_index: usize) -> WhereClause {
+        if let Some(index) = self.indexes.get(index_index) {
+            index.create_where_clause()
         } else {
-            (self.get_prefix().to_vec(), IndexType::Primary)
-        };
-
-        WhereClause::new(&prefix, lower_size, upper_size, index_type)
+            WhereClause::new(&self.get_prefix(), IndexType::Primary)
+        }
     }
 
     fn get_prefix(&self) -> [u8; 2] {
@@ -161,12 +149,9 @@ impl IsarCollection {
     fn delete_from_indexes(&self, txn: &Txn, oid: ObjectId) -> Result<bool> {
         let existing_object = self.get(txn, oid)?;
         if let Some(existing_object) = existing_object {
-            /*let oid_bytes = oid.to_bytes();
             for index in &self.indexes {
-                let index_db = self.dbs.get(index.get_type());
-                let index_key = index.create_key(object);
-                index_db.delete(txn, &index_key, Some(&oid_bytes))?;
-            }*/
+                index.delete_for_object(txn, oid, existing_object)?;
+            }
             Ok(true)
         } else {
             Ok(false)
@@ -177,9 +162,45 @@ impl IsarCollection {
 #[cfg(test)]
 mod tests {
     use crate::collection::IsarCollection;
-    use crate::data_dbs::DataDbs;
     use crate::field::{DataType, Field};
     use crate::lmdb::db::Db;
+
+    #[test]
+    fn test_calculate_static_size() {
+        let fields1 = vec![Field::new(DataType::Bool, 0), Field::new(DataType::Int, 1)];
+        let fields2 = vec![
+            Field::new(DataType::Bool, 0),
+            Field::new(DataType::String, 1),
+            Field::new(DataType::Bytes, 9),
+            Field::new(DataType::Double, 9),
+        ];
+
+        assert_eq!(IsarCollection::calculate_static_size(&fields1), 9);
+        assert_eq!(IsarCollection::calculate_static_size(&fields2), 25);
+    }
+
+    #[test]
+    fn test_find_first_dynamic_field_index() {
+        let static_fields = vec![Field::new(DataType::Bool, 0), Field::new(DataType::Int, 1)];
+        let mixed_fields = vec![
+            Field::new(DataType::Bool, 0),
+            Field::new(DataType::String, 1),
+        ];
+        let dynamic_fields = vec![Field::new(DataType::String, 0)];
+
+        assert_eq!(
+            IsarCollection::find_first_dynamic_field_index(&static_fields),
+            None
+        );
+        assert_eq!(
+            IsarCollection::find_first_dynamic_field_index(&mixed_fields),
+            Some(1)
+        );
+        assert_eq!(
+            IsarCollection::find_first_dynamic_field_index(&dynamic_fields),
+            Some(0)
+        );
+    }
 
     #[test]
     fn test_verify_object() {
@@ -192,7 +213,7 @@ mod tests {
             Field::new(DataType::Bytes, 9),
         ];
 
-        fn collection(fields: &[Field]) -> IsarCollection {
+        fn col(fields: &[Field]) -> IsarCollection {
             IsarCollection::new(
                 "".to_string(),
                 0,
@@ -203,44 +224,44 @@ mod tests {
             )
         }
 
-        assert_eq!(collection(&static_fields).verify_object(&[]), false);
-        assert_eq!(collection(&static_fields).verify_object(&[1, 4]), false);
-        assert_eq!(collection(&static_fields).verify_object(&[0; 9]), true);
-        assert_eq!(collection(&static_fields).verify_object(&[0; 10]), false);
+        assert_eq!(col(&static_fields).verify_object(&[]), false);
+        assert_eq!(col(&static_fields).verify_object(&[1, 4]), false);
+        assert_eq!(col(&static_fields).verify_object(&[0; 9]), true);
+        assert_eq!(col(&static_fields).verify_object(&[0; 10]), false);
 
-        assert_eq!(collection(&string_field).verify_object(&[]), false);
-        assert_eq!(collection(&string_field).verify_object(&[0; 8]), true);
-        assert_eq!(collection(&string_field).verify_object(&[0; 9]), false);
+        assert_eq!(col(&string_field).verify_object(&[]), false);
+        assert_eq!(col(&string_field).verify_object(&[0; 8]), true);
+        assert_eq!(col(&string_field).verify_object(&[0; 9]), false);
         assert_eq!(
-            collection(&string_field).verify_object(&[8, 0, 0, 0, 3, 0, 0, 0, 60, 61, 62]),
+            col(&string_field).verify_object(&[8, 0, 0, 0, 3, 0, 0, 0, 60, 61, 62]),
             true
         );
         assert_eq!(
-            collection(&string_field).verify_object(&[1, 0, 0, 0, 3, 0, 0, 0, 60, 61, 62]),
+            col(&string_field).verify_object(&[1, 0, 0, 0, 3, 0, 0, 0, 60, 61, 62]),
             false
         );
         assert_eq!(
-            collection(&string_field).verify_object(&[9, 0, 0, 0, 1, 0, 0, 0, 60, 61]),
+            col(&string_field).verify_object(&[9, 0, 0, 0, 1, 0, 0, 0, 60, 61]),
             false
         );
 
-        assert_eq!(collection(&mixed_fields).verify_object(&[]), false);
-        assert_eq!(collection(&mixed_fields).verify_object(&[0; 17]), true);
-        assert_eq!(collection(&mixed_fields).verify_object(&[0; 18]), false);
+        assert_eq!(col(&mixed_fields).verify_object(&[]), false);
+        assert_eq!(col(&mixed_fields).verify_object(&[0; 17]), true);
+        assert_eq!(col(&mixed_fields).verify_object(&[0; 18]), false);
         assert_eq!(
-            collection(&mixed_fields).verify_object(&[
+            col(&mixed_fields).verify_object(&[
                 2, 17, 0, 0, 0, 1, 0, 0, 0, 18, 0, 0, 0, 3, 0, 0, 0, 63, 60, 61, 62
             ]),
             true
         );
         assert_eq!(
-            collection(&mixed_fields).verify_object(&[
+            col(&mixed_fields).verify_object(&[
                 2, 17, 0, 0, 0, 1, 0, 0, 0, 18, 0, 0, 0, 3, 0, 0, 0, 63, 60, 61, 62, 63
             ]),
             false
         );
         assert_eq!(
-            collection(&mixed_fields).verify_object(&[
+            col(&mixed_fields).verify_object(&[
                 2, 17, 0, 0, 0, 1, 0, 0, 0, 17, 0, 0, 0, 3, 0, 0, 0, 63, 60, 61, 62
             ]),
             false

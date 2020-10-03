@@ -1,4 +1,4 @@
-use crate::error::{IsarError, Result};
+use crate::error::Result;
 use crate::lmdb::cursor::Cursor;
 use crate::lmdb::error::{lmdb_result, LmdbError};
 use crate::lmdb::txn::Txn;
@@ -215,8 +215,8 @@ mod tests {
 
         let txn = env.txn(true).unwrap();
         {
-            let mut cur = db.cursor(&txn).unwrap();
-            assert_eq!(cur.set(b"key2").unwrap(), true);
+            //let mut cur = db.cursor(&txn).unwrap();
+            //assert_eq!(cur.set(b"key2").unwrap(), true);
             //let iter = cur.iter_dup();
             //let vals = iter.map(|x| x.1).collect_vec();
             //assert!(iter.error.is_none());
@@ -231,7 +231,7 @@ mod tests {
 
         let txn = env.txn(true).unwrap();
         {
-            let mut cur = db.cursor(&txn).unwrap();
+            let cur = db.cursor(&txn).unwrap();
             cur.move_to_first().unwrap();
             let iter = cur.iter();
             let vals: Result<Vec<&[u8]>> = iter.map_results(|x| x.1).collect();

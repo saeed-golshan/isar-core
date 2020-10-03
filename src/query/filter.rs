@@ -1,5 +1,6 @@
 use crate::field::Field;
 use enum_dispatch::enum_dispatch;
+use unicase::UniCase;
 
 pub enum Case {
     Sensitive,
@@ -160,13 +161,20 @@ pub struct StrAnyOf {
 
 impl Condition for StrAnyOf {
     fn evaluate(&self, object: &[u8]) -> bool {
-        let str = self.field.get_bytes(object);
+        let string_bytes = self.field.get_bytes(object);
         match self.case {
             Case::Sensitive => self
                 .values
                 .iter()
-                .any(|str_item| str_item.as_slice() == str),
-            Case::Insensitive => self.values.iter().any(|str_item| true),
+                .any(|item| item.as_slice() == string_bytes),
+            Case::Insensitive => unsafe {
+                let string = std::str::from_utf8_unchecked(string_bytes);
+                let uni_case = UniCase::new(string);
+                self.values
+                    .iter()
+                    .map(|item| UniCase::new(std::str::from_utf8(item).unwrap()))
+                    .any(|item| item == uni_case)
+            },
         }
     }
 }

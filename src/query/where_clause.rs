@@ -13,14 +13,10 @@ pub struct WhereClause {
 }
 
 impl WhereClause {
-    pub fn new(prefix: &[u8], lower_size: usize, upper_size: usize, index_type: IndexType) -> Self {
-        let mut lower_key = Vec::with_capacity(lower_size + prefix.len());
-        lower_key.extend_from_slice(prefix);
-        let mut upper_key = Vec::with_capacity(upper_size + prefix.len());
-        upper_key.extend_from_slice(prefix);
+    pub fn new(prefix: &[u8], index_type: IndexType) -> Self {
         WhereClause {
-            lower_key,
-            upper_key,
+            lower_key: prefix.to_vec(),
+            upper_key: prefix.to_vec(),
             index_type,
         }
     }

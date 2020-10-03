@@ -248,8 +248,8 @@ impl Schema {
             .flatten()
             .filter_map(|index| index.id)
             .collect_vec();
-        for mut collection in &mut self.collections {
-            for mut index in &mut collection.indexes {
+        for collection in &mut self.collections {
+            for index in &mut collection.indexes {
                 if index.id.is_none() {
                     loop {
                         let id = random();
@@ -290,7 +290,7 @@ impl Schema {
 
     fn get_collection(&self, collection: &CollectionSchema, dbs: DataDbs) -> IsarCollection {
         let fields = Schema::get_fields(collection);
-        let indexes = self.get_indexes(collection, &fields);
+        let indexes = self.get_indexes(collection, &fields, dbs);
         IsarCollection::new(
             collection.name.clone(),
             collection.id.unwrap(),
@@ -322,7 +322,12 @@ impl Schema {
             .collect()
     }
 
-    fn get_indexes(&self, collection: &CollectionSchema, fields: &[Field]) -> Vec<Index> {
+    fn get_indexes(
+        &self,
+        collection: &CollectionSchema,
+        fields: &[Field],
+        dbs: DataDbs,
+    ) -> Vec<Index> {
         collection
             .indexes
             .iter()
@@ -340,12 +345,12 @@ impl Schema {
                     })
                     .copied()
                     .collect();
-                let index_type = if index.unique {
-                    IndexType::Secondary
+                let (index_type, db) = if index.unique {
+                    (IndexType::Secondary, dbs.secondary)
                 } else {
-                    IndexType::SecondaryDup
+                    (IndexType::SecondaryDup, dbs.secondary_dup)
                 };
-                Index::new(index.id.unwrap(), fields, index_type, index.hash_value)
+                Index::new(index.id.unwrap(), fields, index_type, index.hash_value, db)
             })
             .collect()
     }
