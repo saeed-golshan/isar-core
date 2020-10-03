@@ -1,0 +1,18 @@
+[package]
+name = "lmdb-sys"
+version = "0.1.0"
+authors = ["Simon Leier <simonleier@gmail.com>"]
+edition = "2018"
+
+build = "build.rs"
+
+[lib]
+name = "lmdb_sys"
+
+[dependencies]
+libc = "0.2"
+
+[build-dependencies]
+pkg-config = "0.3"
+cc = "1.0"
+bindgen = { version = "0.55.1", default-features = false, optional = true, features = ["runtime"] }
