@@ -1,6 +1,5 @@
-use crate::data_dbs::IndexType;
 use crate::error::Result;
-use crate::index::{Index, MAX_STRING_INDEX_SIZE};
+use crate::index::{Index, IndexType};
 use crate::lmdb::cursor::{Cursor, CursorIterator};
 use crate::lmdb::KeyVal;
 use std::convert::TryInto;
@@ -64,28 +63,24 @@ impl WhereClause {
         self.upper_key.extend_from_slice(&key);
     }
 
-    pub fn add_lower_bool(&mut self, value: bool) {
-        self.lower_key
-            .extend_from_slice(&Index::get_bool_key(value));
+    pub fn add_bool(&mut self, value: Option<bool>) {
+        let bytes = &Index::get_bool_key(value);
+        self.lower_key.extend_from_slice(bytes);
+        self.upper_key.extend_from_slice(bytes);
     }
 
-    pub fn add_upper_bool(&mut self, value: bool) {
-        self.upper_key
-            .extend_from_slice(&Index::get_bool_key(value));
-    }
-
-    pub fn add_string_hash(&mut self, value: &str) {
-        let hash = Index::get_string_hash_key(value.as_bytes());
+    pub fn add_string_hash(&mut self, value: Option<&str>) {
+        let str_bytes = value.map(|s| s.as_bytes());
+        let hash = Index::get_string_hash_key(str_bytes);
         self.lower_key.extend_from_slice(&hash);
         self.upper_key.extend_from_slice(&hash);
     }
 
-    pub fn add_lower_string_value(&mut self, value: &str, include: bool) {
-        let str_bytes = value.as_bytes();
+    pub fn add_lower_string_value(&mut self, value: Option<&str>, include: bool) {
+        let str_bytes = value.map(|s| s.as_bytes());
         let mut bytes = Index::get_string_value_key(str_bytes);
 
         if !include {
-            assert!(str_bytes.len() < MAX_STRING_INDEX_SIZE);
             let bytes_len = bytes.len();
             bytes[bytes_len - 1] += 1;
         }
@@ -93,13 +88,11 @@ impl WhereClause {
         self.lower_key.extend_from_slice(&bytes);
     }
 
-    pub fn add_upper_string_value(&mut self, value: &str, include: bool) {
-        let str_bytes = value.as_bytes();
+    pub fn add_upper_string_value(&mut self, value: Option<&str>, include: bool) {
+        let str_bytes = value.map(|s| s.as_bytes());
         let mut bytes = Index::get_string_value_key(str_bytes);
 
         if !include {
-            assert!(str_bytes.len() < MAX_STRING_INDEX_SIZE);
-            assert!(str_bytes.len() > 0);
             let bytes_len = bytes.len();
             bytes[bytes_len - 1] -= 1;
         }
