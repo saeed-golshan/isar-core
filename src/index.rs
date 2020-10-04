@@ -1,4 +1,3 @@
-use crate::data_dbs::IndexType;
 use crate::error::Result;
 use crate::field::{DataType, Field};
 use crate::lmdb::db::Db;
@@ -10,9 +9,22 @@ use wyhash::wyhash;
 
 pub const MAX_STRING_INDEX_SIZE: usize = 1500;
 
+/*
+
+Null values are always considered the "smallest" element.
+
+ */
+
+#[derive(Copy, Clone, PartialEq)]
+pub enum IndexType {
+    Primary,
+    Secondary,
+    SecondaryDup,
+}
+
 #[derive(Clone)]
 pub struct Index {
-    id: u16,
+    prefix: [u8; 2],
     fields: Vec<Field>,
     index_type: IndexType,
     hash_value: Option<bool>,
@@ -28,16 +40,12 @@ impl Index {
         db: Db,
     ) -> Self {
         Index {
-            id,
+            prefix: u16::to_le_bytes(id),
             fields,
             index_type,
             hash_value,
             db,
         }
-    }
-
-    fn get_prefix(&self) -> [u8; 2] {
-        u16::to_le_bytes(self.id)
     }
 
     pub fn create_for_object(&self, txn: &Txn, oid: ObjectId, object: &[u8]) -> Result<()> {
@@ -57,15 +65,15 @@ impl Index {
     }
 
     pub fn clear(&self, txn: &Txn) -> Result<()> {
-        self.db.cursor(txn)?.delete_key_prefix(&self.get_prefix())
+        self.db.cursor(txn)?.delete_key_prefix(&self.prefix)
     }
 
     pub fn create_where_clause(&self) -> WhereClause {
-        WhereClause::new(&self.get_prefix(), self.index_type)
+        WhereClause::new(&self.prefix, self.index_type)
     }
 
     fn create_key(&self, object: &[u8]) -> Vec<u8> {
-        let mut bytes = self.get_prefix().to_vec();
+        let mut bytes = self.prefix.to_vec();
         if let Some(true) = self.hash_value {
             let field = self.fields.first().unwrap();
             assert_eq!(field.data_type, DataType::String);
@@ -101,41 +109,55 @@ impl Index {
         u64::to_be_bytes(unsigned ^ 1 << 63).to_vec()
     }
 
+    #[allow(clippy::transmute_float_to_int)]
     pub fn get_double_key(value: f64) -> Vec<u8> {
-        let mut bits = unsafe { std::mem::transmute::<f64, u64>(value) };
-        if value == 0.0 {
-            bits = 0;
-        }
-        if value.is_sign_positive() {
-            bits ^= 0x8000000000000000;
-        } else if value.is_sign_negative() {
-            bits ^= 0xFFFFFFFFFFFFFFFF;
-        }
-        u64::to_be_bytes(bits).to_vec()
-    }
-
-    pub fn get_bool_key(value: bool) -> Vec<u8> {
-        if value {
-            vec![1]
+        if !value.is_nan() {
+            let mut bits = unsafe { std::mem::transmute::<f64, u64>(value) };
+            if value == 0.0 {
+                bits = 0;
+            }
+            if value.is_sign_positive() {
+                bits ^= 0x8000000000000000;
+            } else if value.is_sign_negative() {
+                bits ^= 0xFFFFFFFFFFFFFFFF;
+            }
+            u64::to_be_bytes(bits + 1).to_vec()
         } else {
             vec![0]
         }
     }
 
-    pub fn get_string_hash_key(value: &[u8]) -> Vec<u8> {
-        let hash = wyhash(value, 0);
-        u64::to_be_bytes(hash).to_vec()
+    pub fn get_bool_key(value: Option<bool>) -> Vec<u8> {
+        match value {
+            None => vec![0],
+            Some(false) => vec![1],
+            Some(true) => vec![2],
+        }
     }
 
-    pub fn get_string_value_key(value: &[u8]) -> Vec<u8> {
-        if value.len() >= MAX_STRING_INDEX_SIZE {
-            let mut bytes = (&value[0..MAX_STRING_INDEX_SIZE]).to_vec();
-            let hash = wyhash(&bytes, 0);
-            let hash_bytes = u64::to_le_bytes(hash);
-            bytes.extend_from_slice(&hash_bytes);
+    pub fn get_string_hash_key(value: Option<&[u8]>) -> Vec<u8> {
+        if let Some(value) = value {
+            let hash = wyhash(value, 0);
+            u64::to_be_bytes(hash).to_vec()
+        } else {
+            vec![]
+        }
+    }
+
+    pub fn get_string_value_key(value: Option<&[u8]>) -> Vec<u8> {
+        if let Some(value) = value {
+            let mut bytes = vec![1];
+            if value.len() >= MAX_STRING_INDEX_SIZE {
+                bytes.extend_from_slice(&value[0..MAX_STRING_INDEX_SIZE]);
+                let hash = wyhash(&bytes, 0);
+                let hash_bytes = u64::to_le_bytes(hash);
+                bytes.extend_from_slice(&hash_bytes);
+            } else {
+                bytes.extend_from_slice(value);
+            }
             bytes
         } else {
-            value.to_vec()
+            vec![0]
         }
     }
 }
@@ -143,6 +165,9 @@ impl Index {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_create_key() {}
 
     #[test]
     fn test_get_int_key() {
@@ -165,8 +190,9 @@ mod tests {
 
     #[test]
     fn test_get_bool_index_key() {
-        assert_eq!(Index::get_bool_key(false), vec![0]);
-        assert_eq!(Index::get_bool_key(true), vec![1]);
+        assert_eq!(Index::get_bool_key(None), vec![0]);
+        assert_eq!(Index::get_bool_key(Some(false)), vec![1]);
+        assert_eq!(Index::get_bool_key(Some(true)), vec![2]);
     }
 
     #[test]
@@ -186,7 +212,7 @@ mod tests {
             (&long_str[..], vec![107, 96, 243, 122, 159, 148, 180, 244]),
         ];
         for (str, hash) in pairs {
-            assert_eq!(hash, Index::get_string_hash_key(str.as_bytes()));
+            assert_eq!(hash, Index::get_string_hash_key(Some(str.as_bytes())));
         }
     }
 
@@ -207,7 +233,7 @@ mod tests {
             (&long_str[..], vec![107, 96, 243, 122, 159, 148, 180, 244]),
         ];
         for (str, hash) in pairs {
-            assert_eq!(hash, Index::get_string_hash_key(str.as_bytes()));
+            assert_eq!(hash, Index::get_string_hash_key(Some(str.as_bytes())));
         }
     }
 }
