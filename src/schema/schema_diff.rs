@@ -1,4 +1,8 @@
+use crate::schema::collection_schema::CollectionSchema;
+use crate::schema::field_schema::FieldSchema;
+use crate::schema::index_schema::IndexSchema;
 use crate::schema::schema::{CollectionSchema, FieldSchema, IndexSchema, Schema};
+use crate::schema::Schema;
 
 struct SchemaDiff<'a> {
     added_fields: Vec<&'a FieldSchema>,
