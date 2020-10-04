@@ -70,9 +70,9 @@ impl Env {
 
 #[cfg(test)]
 pub mod tests {
-    use tempdir::TempDir;
 
     use super::*;
+    use tempfile::tempdir;
 
     #[test]
     fn test_create() {
@@ -80,7 +80,7 @@ pub mod tests {
     }
 
     pub fn get_env() -> Env {
-        let dir = TempDir::new("test").unwrap();
+        let dir = tempdir().unwrap();
         Env::create(dir.path().to_str().unwrap(), 50, 100000).unwrap()
     }
 }

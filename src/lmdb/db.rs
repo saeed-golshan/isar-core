@@ -9,7 +9,7 @@ use std::ptr;
 
 #[derive(Copy, Clone)]
 pub struct Db {
-    pub(crate) dbi: ffi::MDB_dbi,
+    pub dbi: ffi::MDB_dbi,
 }
 
 impl Db {
@@ -65,20 +65,20 @@ impl Db {
 
     pub fn put_no_override(&self, txn: &Txn, key: &[u8], data: &[u8]) -> Result<bool> {
         let result = self.put_internal(txn, key, data, ffi::MDB_NOOVERWRITE);
-        return match result {
+        match result {
             Ok(()) => Ok(true),
             Err(LmdbError::KeyExist) => Ok(false),
             Err(e) => Err(e)?,
-        };
+        }
     }
 
     pub fn put_no_dup_data(&self, txn: &Txn, key: &[u8], data: &[u8]) -> Result<bool> {
         let result = self.put_internal(txn, key, data, ffi::MDB_NODUPDATA);
-        return match result {
+        match result {
             Ok(()) => Ok(true),
             Err(LmdbError::KeyExist) => Ok(false),
             Err(e) => Err(e)?,
-        };
+        }
     }
 
     fn put_internal(
@@ -120,6 +120,9 @@ impl Db {
         Cursor::open(txn, &self)
     }
 }
+
+#[cfg(test)]
+pub const DUMMY_DB: Db = Db { dbi: 0 };
 
 #[cfg(test)]
 mod tests {

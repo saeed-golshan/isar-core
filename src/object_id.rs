@@ -63,8 +63,8 @@ impl ObjectId {
         }
     }
 
-    pub fn to_bytes_with_prefix(&self, prefix: u16) -> Vec<u8> {
-        let mut bytes = Vec::from(u16::to_be_bytes(prefix));
+    pub fn to_bytes_with_prefix(&self, prefix: &[u8]) -> Vec<u8> {
+        let mut bytes = prefix.to_vec();
         bytes.extend_from_slice(&self.to_bytes());
         bytes
     }

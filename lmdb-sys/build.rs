@@ -20,7 +20,7 @@ fn main() {
     lmdb.push("libraries");
     lmdb.push("liblmdb");
 
-    if !pkg_config::find_library("liblmdb").is_ok() {
+    if pkg_config::find_library("liblmdb").is_err() {
         let mut builder = cc::Build::new();
 
         builder

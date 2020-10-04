@@ -1,7 +1,9 @@
 use crate::field::Field;
 use enum_dispatch::enum_dispatch;
+use itertools::Itertools;
 use unicase::UniCase;
 
+#[derive(Eq, PartialEq)]
 pub enum Case {
     Sensitive,
     Insensitive,
@@ -15,7 +17,7 @@ pub enum Filter {
     IntAnyOf(IntAnyOf),
     DoubleBetween(DoubleBetween),
     DoubleAnyOf(DoubleAnyOf),
-    StrAnyOf(StrAnyOf),
+    //StrAnyOf(StrAnyOf),
     /*StrStartsWith(),
     StrEndsWith(),
     StrContains(),*/
@@ -138,25 +140,48 @@ impl DoubleBetween {
 pub struct DoubleAnyOf {
     field: Field,
     values: Vec<f64>,
+    epsilon: f64,
 }
 
 impl Condition for DoubleAnyOf {
     fn evaluate(&self, object: &[u8]) -> bool {
         let int = self.field.get_double(object);
-        self.values.iter().any(|v| *v == int)
+        self.values.iter().any(|v| (*v - int).abs() < self.epsilon)
     }
 }
 
 impl DoubleAnyOf {
-    pub fn filter(field: Field, values: Vec<f64>) -> Filter {
-        Filter::DoubleAnyOf(DoubleAnyOf { field, values })
+    pub fn filter(field: Field, values: Vec<f64>, epsilon: f64) -> Filter {
+        Filter::DoubleAnyOf(DoubleAnyOf {
+            field,
+            values,
+            epsilon,
+        })
     }
 }
 
 pub struct StrAnyOf {
     field: Field,
-    values: Vec<Vec<u8>>,
+    values: Vec<Option<Vec<u8>>>,
     case: Case,
+}
+
+/*impl StrAnyOf {
+    pub fn new(field: Field, values: &[Option<&str>], case: Case) -> StrAnyOf {
+        let values = if case == Case::Insensitive {
+            values
+                .iter()
+                .map(|s| s.to_lowercase().into_bytes())
+                .collect_vec()
+        } else {
+            values.iter().map(|s| s.as_bytes().to_vec()).collect_vec()
+        };
+        StrAnyOf {
+            field,
+            values,
+            case,
+        }
+    }
 }
 
 impl Condition for StrAnyOf {
@@ -168,12 +193,11 @@ impl Condition for StrAnyOf {
                 .iter()
                 .any(|item| item.as_slice() == string_bytes),
             Case::Insensitive => unsafe {
-                let string = std::str::from_utf8_unchecked(string_bytes);
-                let uni_case = UniCase::new(string);
+                let lowercase_string = std::str::from_utf8_unchecked(object).to_lowercase();
+                let lowercase_bytes = lowercase_string.as_bytes();
                 self.values
                     .iter()
-                    .map(|item| UniCase::new(std::str::from_utf8(item).unwrap()))
-                    .any(|item| item == uni_case)
+                    .any(|item| item.as_slice() == lowercase_bytes)
             },
         }
     }
@@ -187,7 +211,7 @@ impl StrAnyOf {
             case,
         })
     }
-}
+}*/
 
 pub struct And {
     filters: Vec<Filter>,

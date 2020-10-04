@@ -11,7 +11,7 @@ pub const ISAR_VERSION: u32 = 1;
 
 pub struct IsarInstance {
     env: Env,
-    info_db: Db,
+    dbs: DataDbs,
     collections: Vec<IsarCollection>,
     path: String,
 }
@@ -21,23 +21,23 @@ impl IsarInstance {
         //let schema = Schema::schema_from_json(schema_json)?;
 
         let env = Env::create(path, 5, max_size)?;
-        let (info_db, data_dbs) = IsarInstance::open_databases(&env)?;
+        let dbs = IsarInstance::open_databases(&env)?;
 
         let txn = env.txn(true)?;
-        Self::migrate_isar_database(&txn, info_db, data_dbs)?;
+        Self::migrate_isar_database(&txn, dbs)?;
         txn.commit()?;
 
         let collections = vec![];
 
         Ok(IsarInstance {
             env,
-            info_db,
+            dbs,
             collections,
             path: path.to_string(),
         })
     }
 
-    fn open_databases(env: &Env) -> Result<(Db, DataDbs)> {
+    fn open_databases(env: &Env) -> Result<DataDbs> {
         let txn = env.txn(true)?;
         let info = Db::open(&txn, "info", false, false, false)?;
         let primary = Db::open(&txn, "data", true, false, false)?;
@@ -45,19 +45,22 @@ impl IsarInstance {
         let secondary_dup = Db::open(&txn, "index_dup", false, true, true)?;
         let links = Db::open(&txn, "links", true, true, true)?;
         txn.commit()?;
-        Ok((
+        Ok(DataDbs {
             info,
-            DataDbs {
-                primary,
-                secondary,
-                secondary_dup,
-                links,
-            },
-        ))
+            primary,
+            secondary,
+            secondary_dup,
+            links,
+        })
     }
 
-    fn migrate_isar_database(txn: &Txn, info_db: Db, _data_dbs: DataDbs) -> Result<()> {
-        let version = info_db.get(&txn, b"version")?;
+    //#[cfg(test)]
+    pub fn open_databases_debug(env: &Env) -> Result<DataDbs> {
+        Self::open_databases(env)
+    }
+
+    fn migrate_isar_database(txn: &Txn, dbs: DataDbs) -> Result<()> {
+        let version = dbs.info.get(&txn, b"version")?;
         if let Some(version) = version {
             let version_number = u32::from_le_bytes(version.try_into().unwrap());
             if version_number != ISAR_VERSION {
@@ -66,7 +69,8 @@ impl IsarInstance {
                 });
             }
         } else {
-            info_db.put(&txn, b"version", &u32::to_le_bytes(ISAR_VERSION))?;
+            dbs.info
+                .put(&txn, b"version", &u32::to_le_bytes(ISAR_VERSION))?;
         }
         Ok(())
     }

@@ -1,5 +1,5 @@
-use crate::data_dbs::IndexType;
 use crate::error::{illegal_state, Result};
+use crate::index::IndexType;
 use crate::lmdb::cursor::Cursor;
 use crate::query::where_clause::WhereClause;
 use std::collections::HashSet;

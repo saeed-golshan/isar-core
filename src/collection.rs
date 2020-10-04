@@ -1,7 +1,6 @@
-use crate::data_dbs::IndexType;
 use crate::error::{illegal_arg, illegal_state, Result};
 use crate::field::Field;
-use crate::index::Index;
+use crate::index::{Index, IndexType};
 use crate::link::Link;
 use crate::lmdb::db::Db;
 use crate::lmdb::txn::Txn;
@@ -10,38 +9,29 @@ use crate::query::where_clause::WhereClause;
 use rand::random;
 
 pub struct IsarCollection {
-    pub name: String,
-    pub id: u16,
+    prefix: [u8; 2],
     fields: Vec<Field>,
     links: Vec<Link>,
     indexes: Vec<Index>,
     static_size: usize,
     first_dynamic_field_index: Option<usize>,
-    primary_db: Db,
+    db: Db,
     oidg: ObjectIdGenerator,
 }
 
 impl IsarCollection {
-    pub fn new(
-        name: String,
-        id: u16,
-        fields: Vec<Field>,
-        links: Vec<Link>,
-        indexes: Vec<Index>,
-        primary_db: Db,
-    ) -> Self {
+    pub fn new(id: u16, fields: Vec<Field>, links: Vec<Link>, indexes: Vec<Index>, db: Db) -> Self {
         let static_size = Self::calculate_static_size(&fields);
         let first_dynamic_field_index = Self::find_first_dynamic_field_index(&fields);
 
         IsarCollection {
-            name,
-            id,
+            prefix: u16::to_le_bytes(id),
             fields,
             links,
             indexes,
             static_size,
             first_dynamic_field_index,
-            primary_db,
+            db,
             oidg: ObjectIdGenerator::new(random()),
         }
     }
@@ -63,8 +53,8 @@ impl IsarCollection {
     }
 
     pub fn get<'txn>(&self, txn: &'txn Txn, oid: ObjectId) -> Result<Option<&'txn [u8]>> {
-        let oid_bytes = oid.to_bytes_with_prefix(self.id);
-        self.primary_db.get(txn, &oid_bytes)
+        let oid_bytes = oid.to_bytes_with_prefix(&self.prefix);
+        self.db.get(txn, &oid_bytes)
     }
 
     pub fn put(&mut self, txn: &Txn, oid: Option<ObjectId>, object: &[u8]) -> Result<ObjectId> {
@@ -77,24 +67,24 @@ impl IsarCollection {
             self.oidg.generate()
         };
 
-        if !self.verify_object(object) {
+        /*if !self.verify_object(object) {
             illegal_arg("Provided object is invalid.")?;
-        }
+        }*/
 
-        let oid_bytes = oid.to_bytes_with_prefix(self.id);
+        let oid_bytes = oid.to_bytes_with_prefix(&self.prefix);
 
         for index in &self.indexes {
             index.create_for_object(txn, oid, object)?;
         }
 
-        self.primary_db.put(txn, &oid_bytes, object)?;
+        self.db.put(txn, &oid_bytes, object)?;
         Ok(oid)
     }
 
     pub fn delete(&self, txn: &Txn, oid: ObjectId) -> Result<()> {
         if self.delete_from_indexes(txn, oid)? {
-            let oid_bytes = oid.to_bytes_with_prefix(self.id);
-            self.primary_db.delete(txn, &oid_bytes, None)?;
+            let oid_bytes = oid.to_bytes_with_prefix(&self.prefix);
+            self.db.delete(txn, &oid_bytes, None)?;
         }
         Ok(())
     }
@@ -103,8 +93,8 @@ impl IsarCollection {
         for index in &self.indexes {
             index.clear(txn)?;
         }
-        let cursor = self.primary_db.cursor(txn)?;
-        cursor.delete_key_prefix(&self.get_prefix())?;
+        let cursor = self.db.cursor(txn)?;
+        cursor.delete_key_prefix(&self.prefix)?;
 
         Ok(())
     }
@@ -113,15 +103,11 @@ impl IsarCollection {
         if let Some(index) = self.indexes.get(index_index) {
             index.create_where_clause()
         } else {
-            WhereClause::new(&self.get_prefix(), IndexType::Primary)
+            WhereClause::new(&self.prefix, IndexType::Primary)
         }
     }
 
-    fn get_prefix(&self) -> [u8; 2] {
-        u16::to_le_bytes(self.id)
-    }
-
-    fn verify_object(&self, object: &[u8]) -> bool {
+    /*fn verify_object(&self, object: &[u8]) -> bool {
         if let Some(first_dynamic_index) = self.first_dynamic_field_index {
             if object.len() < self.static_size {
                 return false;
@@ -144,7 +130,7 @@ impl IsarCollection {
         } else {
             object.len() == self.static_size
         }
-    }
+    }*/
 
     fn delete_from_indexes(&self, txn: &Txn, oid: ObjectId) -> Result<bool> {
         let existing_object = self.get(txn, oid)?;
@@ -163,7 +149,7 @@ impl IsarCollection {
 mod tests {
     use crate::collection::IsarCollection;
     use crate::field::{DataType, Field};
-    use crate::lmdb::db::Db;
+    use crate::lmdb::db::DUMMY_DB;
 
     #[test]
     fn test_calculate_static_size() {
@@ -203,6 +189,9 @@ mod tests {
     }
 
     #[test]
+    fn test_create_where_clause() {}
+
+    /*#[test]
     fn test_verify_object() {
         let static_fields = vec![Field::new(DataType::Bool, 0), Field::new(DataType::Int, 1)];
         let string_field = vec![Field::new(DataType::String, 0)];
@@ -214,14 +203,7 @@ mod tests {
         ];
 
         fn col(fields: &[Field]) -> IsarCollection {
-            IsarCollection::new(
-                "".to_string(),
-                0,
-                fields.to_vec(),
-                vec![],
-                vec![],
-                Db { dbi: 0 },
-            )
+            IsarCollection::new(0, fields.to_vec(), vec![], vec![], DUMMY_DB)
         }
 
         assert_eq!(col(&static_fields).verify_object(&[]), false);
@@ -266,5 +248,5 @@ mod tests {
             ]),
             false
         );
-    }
+    }*/
 }
