@@ -1,6 +1,7 @@
 use crate::collection::IsarCollection;
 use crate::error::illegal_arg;
 use crate::instance::IsarInstance;
+use crate::schema::Schema;
 use crate::utils::from_c_str;
 use std::os::raw::c_char;
 
@@ -9,12 +10,12 @@ pub unsafe extern "C" fn isar_create_instance(
     isar: *mut *const IsarInstance,
     path: *const c_char,
     max_size: u32,
-    schema_json: *const c_char,
+    schema: *mut Schema,
 ) -> u8 {
     isar_try! {
         let path_str = from_c_str(path)?;
-        let schemas_str = from_c_str(schema_json)?;
-        let new_isar = IsarInstance::create(path_str, max_size, schemas_str)?;
+        let schema = Box::from_raw(schema);
+        let new_isar = IsarInstance::create(path_str, max_size, *schema)?;
         let isar_ptr = Box::into_raw(Box::new(new_isar));
         isar.write(isar_ptr);
     }
@@ -34,9 +35,4 @@ pub unsafe extern "C" fn isar_get_collection<'a>(
             illegal_arg("Provided index is invalid.")?;
         }
     }
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn isar_test() -> u8 {
-    return 0;
 }

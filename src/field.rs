@@ -67,8 +67,9 @@ impl DataPosition {
         self.offset == 0
     }
 }
-#[derive(PartialEq, Eq, Copy, Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug)]
 pub struct Field {
+    pub name: String,
     pub data_type: DataType,
     pub offset: usize,
 }
@@ -76,8 +77,12 @@ pub struct Field {
 impl Field {
     const NULL_INT: i64 = i64::MIN;
 
-    pub fn new(data_type: DataType, offset: usize) -> Self {
-        Field { data_type, offset }
+    pub fn new(name: &str, data_type: DataType, offset: usize) -> Self {
+        Field {
+            name: name.to_string(),
+            data_type,
+            offset,
+        }
     }
 
     #[inline]
@@ -244,7 +249,7 @@ mod tests {
 
     #[test]
     fn test_int_field_is_null() {
-        let field = Field::new(DataType::Int, 0);
+        let field = Field::new("", DataType::Int, 0);
         let null_bytes = i64::to_le_bytes(Field::NULL_INT);
         assert!(field.is_null(&null_bytes));
 
@@ -254,7 +259,7 @@ mod tests {
 
     #[test]
     fn test_double_field_is_null() {
-        let field = Field::new(DataType::Double, 0);
+        let field = Field::new("", DataType::Double, 0);
         let null_bytes = f64::to_le_bytes(f64::NAN);
         assert!(field.is_null(&null_bytes));
 
@@ -264,7 +269,7 @@ mod tests {
 
     #[test]
     fn test_bool_field_is_null() {
-        let field = Field::new(DataType::Bool, 0);
+        let field = Field::new("", DataType::Bool, 0);
         let null_bytes = [0];
         assert!(field.is_null(&null_bytes));
 

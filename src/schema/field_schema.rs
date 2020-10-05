@@ -1,7 +1,7 @@
 use crate::field::DataType;
 use serde::{Deserialize, Serialize};
 
-#[derive(Ord, PartialOrd, Eq, PartialEq, Serialize, Deserialize, Clone)]
+#[derive(PartialEq, Serialize, Deserialize, Clone)]
 pub struct FieldSchema {
     pub(super) name: String,
     #[serde(rename = "type")]

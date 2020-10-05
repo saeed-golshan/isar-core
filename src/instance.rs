@@ -5,6 +5,7 @@ use crate::error::*;
 use crate::lmdb::db::Db;
 use crate::lmdb::env::Env;
 use crate::lmdb::txn::Txn;
+use crate::schema::Schema;
 use std::convert::TryInto;
 
 pub const ISAR_VERSION: u32 = 1;
@@ -17,17 +18,15 @@ pub struct IsarInstance {
 }
 
 impl IsarInstance {
-    pub fn create(path: &str, max_size: u32, _schema_json: &str) -> Result<Self> {
-        //let schema = Schema::schema_from_json(schema_json)?;
-
+    pub fn create(path: &str, max_size: u32, schema: Schema) -> Result<Self> {
         let env = Env::create(path, 5, max_size)?;
         let dbs = IsarInstance::open_databases(&env)?;
 
-        let txn = env.txn(true)?;
-        Self::migrate_isar_database(&txn, dbs)?;
-        txn.commit()?;
+        let collections = schema.get_isar_collections(dbs, None);
 
-        let collections = vec![];
+        /*let txn = env.txn(true)?;
+        Self::migrate_isar_database(&txn, dbs)?;
+        txn.commit()?;*/
 
         Ok(IsarInstance {
             env,
@@ -54,12 +53,8 @@ impl IsarInstance {
         })
     }
 
-    //#[cfg(test)]
-    pub fn open_databases_debug(env: &Env) -> Result<DataDbs> {
-        Self::open_databases(env)
-    }
-
     fn migrate_isar_database(txn: &Txn, dbs: DataDbs) -> Result<()> {
+        return Ok(());
         let version = dbs.info.get(&txn, b"version")?;
         if let Some(version) = version {
             let version_number = u32::from_le_bytes(version.try_into().unwrap());

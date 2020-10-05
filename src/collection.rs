@@ -52,6 +52,10 @@ impl IsarCollection {
             .next()
     }
 
+    pub fn get_fields(&self) -> &[Field] {
+        &self.fields
+    }
+
     pub fn get<'txn>(&self, txn: &'txn Txn, oid: ObjectId) -> Result<Option<&'txn [u8]>> {
         let oid_bytes = oid.to_bytes_with_prefix(&self.prefix);
         self.db.get(txn, &oid_bytes)
@@ -151,7 +155,7 @@ mod tests {
     use crate::field::{DataType, Field};
     use crate::lmdb::db::DUMMY_DB;
 
-    #[test]
+    /*#[test]
     fn test_calculate_static_size() {
         let fields1 = vec![Field::new(DataType::Bool, 0), Field::new(DataType::Int, 1)];
         let fields2 = vec![
@@ -186,7 +190,7 @@ mod tests {
             IsarCollection::find_first_dynamic_field_index(&dynamic_fields),
             Some(0)
         );
-    }
+    }*/
 
     #[test]
     fn test_create_where_clause() {}
