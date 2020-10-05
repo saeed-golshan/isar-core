@@ -1,4 +1,4 @@
-use crate::object_id::ObjectId;
+use crate::object::object_id::ObjectId;
 use std::{ptr, slice};
 
 #[repr(C)]

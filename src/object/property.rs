@@ -68,17 +68,21 @@ impl DataPosition {
     }
 }
 #[derive(PartialEq, Eq, Clone, Debug)]
-pub struct Field {
+pub struct Property {
     pub name: String,
     pub data_type: DataType,
     pub offset: usize,
 }
 
-impl Field {
-    const NULL_INT: i64 = i64::MIN;
+impl Property {
+    pub const NULL_INT: i64 = i64::MIN;
+    pub const NULL_DOUBLE: f64 = f64::NAN;
+    pub const NULL_BOOL: u8 = 0;
+    pub const FALSE_BOOL: u8 = 1;
+    pub const TRUE_BOOL: u8 = 2;
 
     pub fn new(name: &str, data_type: DataType, offset: usize) -> Self {
-        Field {
+        Property {
             name: name.to_string(),
             data_type,
             offset,
@@ -110,9 +114,10 @@ impl Field {
     #[inline]
     pub fn get_bool(&self, object: &[u8]) -> Option<bool> {
         match object[self.offset] {
-            0 => None,
-            1 => Some(false),
-            _ => Some(true),
+            Self::NULL_BOOL => None,
+            Self::TRUE_BOOL => Some(false),
+            Self::FALSE_BOOL => Some(true),
+            _ => panic!("Unexpected bool value"),
         }
     }
 
@@ -178,7 +183,7 @@ impl Field {
         let type_size = mem::size_of::<T>();
         let alignment = bytes.as_ref().as_ptr() as usize;
         assert_eq!(alignment % type_size, 0, "Wrong alignment.");
-        let ptr = bytes.as_ptr() as *const DataPosition;
+        let ptr = bytes.as_ptr() as *const u8;
         unsafe { slice::from_raw_parts::<T>(ptr as *const T, bytes.len() / type_size) }
     }
 }
@@ -214,7 +219,7 @@ impl DataType {
                 return Err(IsarError::DbCorrupted {
                     source: None,
                     message: format!(
-                        "Field data type {} is not a valid type. Database may be corrupted.",
+                        "Property data type {} is not a valid type. Database may be corrupted.",
                         id
                     ),
                 });
@@ -234,7 +239,7 @@ impl DataType {
         }
     }
 
-    pub fn get_static_size(&self) -> u8 {
+    pub fn get_static_size(&self) -> usize {
         if *self == DataType::Bool {
             1
         } else {
@@ -245,58 +250,58 @@ impl DataType {
 
 #[cfg(test)]
 mod tests {
-    use crate::field::*;
+    use crate::object::property::{DataType, Property};
 
     #[test]
-    fn test_int_field_is_null() {
-        let field = Field::new("", DataType::Int, 0);
-        let null_bytes = i64::to_le_bytes(Field::NULL_INT);
-        assert!(field.is_null(&null_bytes));
+    fn test_int_property_is_null() {
+        let property = Property::new("", DataType::Int, 0);
+        let null_bytes = i64::to_le_bytes(Property::NULL_INT);
+        assert!(property.is_null(&null_bytes));
 
         let bytes = i64::to_le_bytes(0);
-        assert_eq!(field.is_null(&bytes), false);
+        assert_eq!(property.is_null(&bytes), false);
     }
 
     #[test]
-    fn test_double_field_is_null() {
-        let field = Field::new("", DataType::Double, 0);
+    fn test_double_property_is_null() {
+        let property = Property::new("", DataType::Double, 0);
         let null_bytes = f64::to_le_bytes(f64::NAN);
-        assert!(field.is_null(&null_bytes));
+        assert!(property.is_null(&null_bytes));
 
         let bytes = f64::to_le_bytes(0.0);
-        assert_eq!(field.is_null(&bytes), false);
+        assert_eq!(property.is_null(&bytes), false);
     }
 
     #[test]
-    fn test_bool_field_is_null() {
-        let field = Field::new("", DataType::Bool, 0);
+    fn test_bool_property_is_null() {
+        let property = Property::new("", DataType::Bool, 0);
         let null_bytes = [0];
-        assert!(field.is_null(&null_bytes));
+        assert!(property.is_null(&null_bytes));
 
         let bytes = [1];
-        assert_eq!(field.is_null(&bytes), false);
+        assert_eq!(property.is_null(&bytes), false);
 
         let bytes = [123];
-        assert_eq!(field.is_null(&bytes), false);
+        assert_eq!(property.is_null(&bytes), false);
     }
 
     /*#[test]
-    fn test_string_field_is_null() {
-        let field = Field::new(DataType::String, 0);
+    fn test_string_property_is_null() {
+        let property = Property::new(DataType::String, 0);
         let null_bytes = u32::to_le_bytes(NULL_LENGTH);
-        assert!(field.is_null(&null_bytes));
+        assert!(property.is_null(&null_bytes));
 
         let bytes = [0, 0, 0, 0];
-        assert_eq!(field.is_null(&bytes), false);
+        assert_eq!(property.is_null(&bytes), false);
     }
 
     #[test]
-    fn test_bytes_field_is_null() {
-        let field = Field::new(DataType::Bytes, 0);
+    fn test_bytes_property_is_null() {
+        let property = Property::new(DataType::Bytes, 0);
         let null_bytes = u32::to_le_bytes(NULL_LENGTH);
-        assert!(field.is_null(&null_bytes));
+        assert!(property.is_null(&null_bytes));
 
         let bytes = [0, 0, 0, 0];
-        assert_eq!(field.is_null(&bytes), false);
+        assert_eq!(property.is_null(&bytes), false);
     }*/
 }

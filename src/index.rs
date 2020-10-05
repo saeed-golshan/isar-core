@@ -1,8 +1,8 @@
 use crate::error::Result;
-use crate::field::{DataType, Field};
 use crate::lmdb::db::Db;
 use crate::lmdb::txn::Txn;
-use crate::object_id::ObjectId;
+use crate::object::object_id::ObjectId;
+use crate::object::property::{DataType, Property};
 use crate::query::where_clause::WhereClause;
 use std::mem::transmute;
 use wyhash::wyhash;
@@ -25,23 +25,23 @@ pub enum IndexType {
 #[derive(Clone)]
 pub struct Index {
     prefix: [u8; 2],
-    fields: Vec<Field>,
+    properties: Vec<Property>,
     index_type: IndexType,
-    hash_value: Option<bool>,
+    hash_value: bool,
     db: Db,
 }
 
 impl Index {
     pub(crate) fn new(
         id: u16,
-        fields: Vec<Field>,
+        properties: Vec<Property>,
         index_type: IndexType,
-        hash_value: Option<bool>,
+        hash_value: bool,
         db: Db,
     ) -> Self {
         Index {
             prefix: u16::to_le_bytes(id),
-            fields,
+            properties,
             index_type,
             hash_value,
             db,
@@ -74,31 +74,34 @@ impl Index {
 
     fn create_key(&self, object: &[u8]) -> Vec<u8> {
         let mut bytes = self.prefix.to_vec();
-        if let Some(true) = self.hash_value {
-            let field = self.fields.first().unwrap();
-            assert_eq!(field.data_type, DataType::String);
-            let value = field.get_bytes(object);
+        if self.hash_value {
+            let property = self.properties.first().unwrap();
+            assert_eq!(property.data_type, DataType::String);
+            let value = property.get_bytes(object);
             bytes.extend(Self::get_string_value_key(value))
         } else {
-            let index_iter = self.fields.iter().flat_map(|field| match field.data_type {
-                DataType::Int => {
-                    let value = field.get_int(object);
-                    Self::get_int_key(value)
-                }
-                DataType::Double => {
-                    let value = field.get_double(object);
-                    Self::get_double_key(value)
-                }
-                DataType::Bool => {
-                    let value = field.get_bool(object);
-                    Self::get_bool_key(value)
-                }
-                DataType::String => {
-                    let value = field.get_bytes(object);
-                    Self::get_string_hash_key(value)
-                }
-                _ => unreachable!(),
-            });
+            let index_iter = self
+                .properties
+                .iter()
+                .flat_map(|field| match field.data_type {
+                    DataType::Int => {
+                        let value = field.get_int(object);
+                        Self::get_int_key(value)
+                    }
+                    DataType::Double => {
+                        let value = field.get_double(object);
+                        Self::get_double_key(value)
+                    }
+                    DataType::Bool => {
+                        let value = field.get_bool(object);
+                        Self::get_bool_key(value)
+                    }
+                    DataType::String => {
+                        let value = field.get_bytes(object);
+                        Self::get_string_hash_key(value)
+                    }
+                    _ => unreachable!(),
+                });
             bytes.extend(index_iter);
         }
         bytes

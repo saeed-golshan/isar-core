@@ -1,4 +1,4 @@
-use crate::field::DataType;
+use crate::object::property::DataType;
 use crate::schema::collection_schema::CollectionSchema;
 use crate::schema::Schema;
 use crate::utils::from_c_str;
@@ -34,7 +34,7 @@ pub unsafe extern "C" fn isar_schema_collection_create(
 }
 
 #[no_mangle]
-pub extern "C" fn isar_schema_collection_add_field(
+pub extern "C" fn isar_schema_collection_add_property(
     collection: Option<&mut CollectionSchema>,
     name: *const c_char,
     data_type: u8,
@@ -42,20 +42,20 @@ pub extern "C" fn isar_schema_collection_add_field(
     isar_try! {
         let name_str = from_c_str(name)?;
         let data_type = DataType::from_type_id(data_type)?;
-        collection.unwrap().add_field(&name_str, data_type);
+        collection.unwrap().add_property(&name_str, data_type);
     }
 }
 
 #[no_mangle]
 pub extern "C" fn isar_schema_collection_add_index(
     collection: Option<&mut CollectionSchema>,
-    field_names: *const c_char,
+    property_names: *const c_char,
     unique: bool,
     hash_value: bool,
 ) -> u8 {
     isar_try! {
         /*let name_str = from_c_str(name)?;
         let data_type = DataType::from_type_id(data_type)?;
-        collection.unwrap().add_field(&name_str, data_type);*/
+        collection.unwrap().add_property(&name_str, data_type);*/
     }
 }

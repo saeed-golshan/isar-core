@@ -1,7 +1,7 @@
 use crate::collection::IsarCollection;
 use crate::error::illegal_arg;
 use crate::lmdb::txn::Txn;
-use crate::object_set::RawObject;
+use crate::object::object_set::RawObject;
 
 #[no_mangle]
 pub unsafe extern "C" fn isar_get(

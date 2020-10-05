@@ -1,4 +1,4 @@
-use crate::field::Field;
+use crate::object::property::Property;
 use enum_dispatch::enum_dispatch;
 use itertools::Itertools;
 use unicase::UniCase;
@@ -29,7 +29,7 @@ pub enum Filter {
 /*impl Filter {
     fn null_safe(self) -> Filter {
         Filter::NonNullFilter(NonNullFilter {
-            field: self.get_field().unwrap(),
+            property: self.get_property().unwrap(),
             filter: Box::new(self),
         })
     }
@@ -41,31 +41,31 @@ trait Condition {
 }
 
 pub struct EqualsNull {
-    field: Field,
+    property: Property,
     is_null: bool,
 }
 
 impl Condition for EqualsNull {
     fn evaluate(&self, object: &[u8]) -> bool {
-        let null = self.field.is_null(object);
+        let null = self.property.is_null(object);
         self.is_null == null
     }
 }
 
 impl EqualsNull {
-    pub fn filter(field: Field, is_null: bool) -> Filter {
-        Filter::EqualsNull(EqualsNull { field, is_null })
+    pub fn filter(property: Property, is_null: bool) -> Filter {
+        Filter::EqualsNull(EqualsNull { property, is_null })
     }
 }
 
 pub struct NonNullFilter {
-    field: Field,
+    property: Property,
     filter: Box<Filter>,
 }
 
 impl Condition for NonNullFilter {
     fn evaluate(&self, object: &[u8]) -> bool {
-        if !self.field.is_null(object) {
+        if !self.property.is_null(object) {
             self.filter.evaluate(object)
         } else {
             false
@@ -76,20 +76,20 @@ impl Condition for NonNullFilter {
 pub struct IntBetween {
     upper: i64,
     lower: i64,
-    field: Field,
+    property: Property,
 }
 
 impl Condition for IntBetween {
     fn evaluate(&self, object: &[u8]) -> bool {
-        let int = self.field.get_int(object);
+        let int = self.property.get_int(object);
         self.lower <= int && self.upper >= int
     }
 }
 
 impl IntBetween {
-    pub fn filter(field: Field, lower: i64, upper: i64) -> Filter {
+    pub fn filter(property: Property, lower: i64, upper: i64) -> Filter {
         Filter::IntBetween(IntBetween {
-            field,
+            property,
             lower,
             upper,
         })
@@ -97,40 +97,40 @@ impl IntBetween {
 }
 
 pub struct IntAnyOf {
-    field: Field,
+    property: Property,
     values: Vec<i64>,
 }
 
 impl Condition for IntAnyOf {
     fn evaluate(&self, object: &[u8]) -> bool {
-        let int = self.field.get_int(object);
+        let int = self.property.get_int(object);
         self.values.iter().any(|v| *v == int)
     }
 }
 
 impl IntAnyOf {
-    pub fn filter(field: Field, values: Vec<i64>) -> Filter {
-        Filter::IntAnyOf(IntAnyOf { field, values })
+    pub fn filter(property: Property, values: Vec<i64>) -> Filter {
+        Filter::IntAnyOf(IntAnyOf { property, values })
     }
 }
 
 pub struct DoubleBetween {
     upper: f64,
     lower: f64,
-    field: Field,
+    property: Property,
 }
 
 impl Condition for DoubleBetween {
     fn evaluate(&self, object: &[u8]) -> bool {
-        let double = self.field.get_double(object);
+        let double = self.property.get_double(object);
         self.lower <= double && self.upper >= double
     }
 }
 
 impl DoubleBetween {
-    pub fn filter(field: Field, lower: f64, upper: f64) -> Filter {
+    pub fn filter(property: Property, lower: f64, upper: f64) -> Filter {
         Filter::DoubleBetween(DoubleBetween {
-            field,
+            property,
             lower,
             upper,
         })
@@ -138,22 +138,22 @@ impl DoubleBetween {
 }
 
 pub struct DoubleAnyOf {
-    field: Field,
+    property: Property,
     values: Vec<f64>,
     epsilon: f64,
 }
 
 impl Condition for DoubleAnyOf {
     fn evaluate(&self, object: &[u8]) -> bool {
-        let int = self.field.get_double(object);
+        let int = self.property.get_double(object);
         self.values.iter().any(|v| (*v - int).abs() < self.epsilon)
     }
 }
 
 impl DoubleAnyOf {
-    pub fn filter(field: Field, values: Vec<f64>, epsilon: f64) -> Filter {
+    pub fn filter(property: Property, values: Vec<f64>, epsilon: f64) -> Filter {
         Filter::DoubleAnyOf(DoubleAnyOf {
-            field,
+            property,
             values,
             epsilon,
         })
@@ -161,13 +161,13 @@ impl DoubleAnyOf {
 }
 
 pub struct StrAnyOf {
-    field: Field,
+    property: Property,
     values: Vec<Option<Vec<u8>>>,
     case: Case,
 }
 
 /*impl StrAnyOf {
-    pub fn new(field: Field, values: &[Option<&str>], case: Case) -> StrAnyOf {
+    pub fn new(property: Property, values: &[Option<&str>], case: Case) -> StrAnyOf {
         let values = if case == Case::Insensitive {
             values
                 .iter()
@@ -177,7 +177,7 @@ pub struct StrAnyOf {
             values.iter().map(|s| s.as_bytes().to_vec()).collect_vec()
         };
         StrAnyOf {
-            field,
+            property,
             values,
             case,
         }
@@ -186,7 +186,7 @@ pub struct StrAnyOf {
 
 impl Condition for StrAnyOf {
     fn evaluate(&self, object: &[u8]) -> bool {
-        let string_bytes = self.field.get_bytes(object);
+        let string_bytes = self.property.get_bytes(object);
         match self.case {
             Case::Sensitive => self
                 .values
@@ -204,9 +204,9 @@ impl Condition for StrAnyOf {
 }
 
 impl StrAnyOf {
-    pub fn filter(field: Field, values: Vec<Vec<u8>>, case: Case) -> Filter {
+    pub fn filter(property: Property, values: Vec<Vec<u8>>, case: Case) -> Filter {
         Filter::StrAnyOf(StrAnyOf {
-            field,
+            property,
             values,
             case,
         })
@@ -274,7 +274,7 @@ impl Not {
 }
 
 pub struct LinkFilter {
-    field: Field,
+    property: Property,
     filter: Box<Filter>,
 }
 

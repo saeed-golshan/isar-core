@@ -1,5 +1,5 @@
 pub mod collection_schema;
-pub mod field_schema;
+pub mod property_schema;
 pub mod index_schema;
 
 use crate::collection::IsarCollection;

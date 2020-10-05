@@ -19,6 +19,6 @@ Currently, unit tests either do not exist or fail. The stable parts of the code 
 
 - [ ] The lmdb module is almost feature complete and unit tests are missing
 - [ ] Index is stable and already has a few unit tests
-- [ ] Field is stable and requires tests
+- [ ] Property is stable and requires tests
 - [ ] ObjectId is stable and requires tests
 - [ ] We need a way to test the ffi interface

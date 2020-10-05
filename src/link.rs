@@ -1,7 +1,7 @@
 use crate::error::Result;
 use crate::lmdb::db::Db;
 use crate::lmdb::txn::Txn;
-use crate::object_id::ObjectId;
+use crate::object::object_id::ObjectId;
 
 pub struct Link {
     forward_id: u16,
