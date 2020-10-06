@@ -53,22 +53,21 @@ impl Index {
 
     pub fn create_for_object(&self, txn: &Txn, oid: ObjectId, object: &[u8]) -> Result<()> {
         let index_key = self.create_key(object);
-        let oid_bytes = oid.to_bytes();
+        let oid_bytes = oid.as_bytes();
         self.db.put(txn, &index_key, oid_bytes)
     }
 
     pub fn delete_for_object(&self, txn: &Txn, oid: ObjectId, object: &[u8]) -> Result<()> {
         let index_key = self.create_key(object);
-        let oid_bytes = oid.to_bytes();
         if self.index_type == IndexType::SecondaryDup {
-            self.db.delete(txn, &index_key, Some(oid_bytes))
+            self.db.delete(txn, &index_key, Some(oid.as_bytes()))
         } else {
             self.db.delete(txn, &index_key, None)
         }
     }
 
     pub fn clear(&self, txn: &Txn) -> Result<()> {
-        self.db.cursor(txn)?.delete_key_prefix(&self.prefix)
+        self.db.delete_key_prefix(txn, &self.prefix)
     }
 
     pub fn create_where_clause(&self) -> WhereClause {
@@ -111,7 +110,7 @@ impl Index {
                         let value = field.get_bytes(object);
                         Self::get_string_hash_key(value)
                     }
-                    _ => unreachable!(),
+                    _ => unimplemented!(),
                 });
             bytes.extend(index_iter);
         }
@@ -200,21 +199,97 @@ impl Index {
 
     #[cfg(test)]
     pub fn debug_dump(&self, txn: &Txn) -> HashMap<Vec<u8>, Vec<u8>> {
-        dump_db(self.db, txn)
+        dump_db(self.db, txn, Some(&self.prefix))
+            .into_iter()
+            .map(|(key, val)| (key[2..].to_vec(), val))
+            .collect()
     }
 
     #[cfg(test)]
     pub fn debug_create_key(&self, object: &[u8]) -> Vec<u8> {
-        self.create_key(object)
+        self.create_key(object)[2..].to_vec()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{col, isar, map};
 
     #[test]
-    fn test_create_key() {}
+    fn test_create_for_object() {
+        macro_rules! test_index (
+            ($data_type:ident , $data:expr, $bytes:expr, $to_index:ident) => {
+                isar!(isar, col => col!(field => $data_type index field));
+                let txn = isar.begin_txn(true).unwrap();
+                let oid = col.put(&txn, None, $bytes).unwrap();
+                let index = col.debug_get_index(0);
+                assert_eq!(
+                    index.debug_dump(&txn),
+                    map!(Index::$to_index($data) => oid.as_bytes())
+                )
+            };
+        );
+
+        test_index!(Int, 123456i32, &123456i32.to_le_bytes(), get_int_key);
+        test_index!(Long, 123456i64, &123456i64.to_le_bytes(), get_long_key);
+        test_index!(Float, 123.456f32, &123.456f32.to_le_bytes(), get_float_key);
+        test_index!(
+            Double,
+            123.456f64,
+            &123.456f64.to_le_bytes(),
+            get_double_key
+        );
+        test_index!(Bool, Some(true), &[2], get_bool_key);
+        //test_index!(String, Some(b"hello"), b"hello", get_string_value_key);
+    }
+
+    #[test]
+    fn test_create_for_object_unique() {}
+
+    #[test]
+    fn test_create_for_object_compound() {}
+
+    #[test]
+    fn test_create_for_object_string() {}
+
+    #[test]
+    fn test_delete_for_object() {}
+
+    #[test]
+    fn test_clear() {}
+
+    #[test]
+    fn test_create_key() {
+        let pairs = vec![
+            (i32::MIN, vec![0, 0, 0, 0]),
+            (i32::MIN + 1, vec![0, 0, 0, 1]),
+            (-1, vec![127, 255, 255, 255]),
+            (0, vec![128, 0, 0, 0]),
+            (1, vec![128, 0, 0, 1]),
+            (i32::MAX - 1, vec![255, 255, 255, 254]),
+            (i32::MAX, vec![255, 255, 255, 255]),
+        ];
+        for (val, bytes) in pairs {
+            assert_eq!(Index::get_int_key(val), bytes);
+        }
+    }
+
+    #[test]
+    fn test_create_int_key() {
+        let pairs = vec![
+            (i32::MIN, vec![0, 0, 0, 0]),
+            (i32::MIN + 1, vec![0, 0, 0, 1]),
+            (-1, vec![127, 255, 255, 255]),
+            (0, vec![128, 0, 0, 0]),
+            (1, vec![128, 0, 0, 1]),
+            (i32::MAX - 1, vec![255, 255, 255, 254]),
+            (i32::MAX, vec![255, 255, 255, 255]),
+        ];
+        for (val, bytes) in pairs {
+            assert_eq!(Index::get_int_key(val), bytes);
+        }
+    }
 
     #[test]
     fn test_get_long_key() {
@@ -231,6 +306,9 @@ mod tests {
             assert_eq!(Index::get_long_key(val), bytes);
         }
     }
+
+    #[test]
+    fn test_get_float_key() {}
 
     #[test]
     fn test_get_double_key() {}
