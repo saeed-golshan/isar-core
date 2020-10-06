@@ -9,6 +9,7 @@ use crate::schema::property_schema::PropertySchema;
 use itertools::Itertools;
 use rand::random;
 use serde::{Deserialize, Serialize};
+use std::cmp::Ordering;
 use std::collections::HashSet;
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -39,12 +40,14 @@ impl CollectionSchema {
         }
 
         if let Some(previous) = self.properties.last() {
-            if data_type == previous.data_type {
-                if name > &previous.name {
-                    illegal_arg("Propertys with same type need to be ordered alphabetically")?;
+            match data_type.cmp(&previous.data_type) {
+                Ordering::Equal => {
+                    if name < &previous.name {
+                        illegal_arg("Propertys with same type need to be ordered alphabetically")?;
+                    }
                 }
-            } else if data_type > previous.data_type {
-                illegal_arg("Propertys need to be ordered by type")?;
+                Ordering::Less => illegal_arg("Propertys need to be ordered by type")?,
+                Ordering::Greater => {}
             }
         }
 
@@ -105,7 +108,7 @@ impl CollectionSchema {
         let properties = self.get_properties();
         let indexes = self.get_indexes(&properties, dbs);
         let object_info = ObjectInfo::new(properties);
-        IsarCollection::new(self.id.unwrap(), object_info, vec![], indexes, dbs.primary)
+        IsarCollection::new(self.id.unwrap(), object_info, indexes, dbs.primary)
     }
 
     fn get_properties(&self) -> Vec<Property> {

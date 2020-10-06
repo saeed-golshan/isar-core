@@ -34,19 +34,19 @@ pub unsafe extern "C" fn isar_schema_collection_create(
 }
 
 #[no_mangle]
-pub extern "C" fn isar_schema_collection_add_property(
+pub unsafe extern "C" fn isar_schema_collection_add_property(
     collection: Option<&mut CollectionSchema>,
     name: *const c_char,
     data_type: u8,
 ) -> u8 {
+    let data_type = DataType::from_ordinal(data_type).unwrap(); // TODO throw error
     isar_try! {
         let name_str = from_c_str(name)?;
-        let data_type = DataType::from_type_id(data_type)?;
-        collection.unwrap().add_property(&name_str, data_type);
+        collection.unwrap().add_property(&name_str, data_type)?;
     }
 }
 
-#[no_mangle]
+/*#[no_mangle]
 pub extern "C" fn isar_schema_collection_add_index(
     collection: Option<&mut CollectionSchema>,
     property_names: *const c_char,
@@ -54,8 +54,8 @@ pub extern "C" fn isar_schema_collection_add_index(
     hash_value: bool,
 ) -> u8 {
     isar_try! {
-        /*let name_str = from_c_str(name)?;
+        let name_str = from_c_str(name)?;
         let data_type = DataType::from_type_id(data_type)?;
-        collection.unwrap().add_property(&name_str, data_type);*/
+        collection.unwrap().add_property(&name_str, data_type);
     }
-}
+}*/

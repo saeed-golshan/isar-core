@@ -1,20 +1,18 @@
 use crate::collection::IsarCollection;
 use crate::data_dbs::DataDbs;
-use crate::error::IsarError::VersionError;
 use crate::error::*;
 use crate::lmdb::db::Db;
 use crate::lmdb::env::Env;
 use crate::lmdb::txn::Txn;
 use crate::schema::Schema;
-use std::convert::TryInto;
 
 pub const ISAR_VERSION: u32 = 1;
 
 pub struct IsarInstance {
     env: Env,
-    dbs: DataDbs,
+    //dbs: DataDbs,
     collections: Vec<IsarCollection>,
-    path: String,
+    //path: String,
 }
 
 impl IsarInstance {
@@ -30,9 +28,9 @@ impl IsarInstance {
 
         Ok(IsarInstance {
             env,
-            dbs,
+            //dbs,
             collections,
-            path: path.to_string(),
+            //path: path.to_string(),
         })
     }
 
@@ -53,7 +51,7 @@ impl IsarInstance {
         })
     }
 
-    fn migrate_isar_database(txn: &Txn, dbs: DataDbs) -> Result<()> {
+    /*fn migrate_isar_database(txn: &Txn, dbs: DataDbs) -> Result<()> {
         return Ok(());
         let version = dbs.info.get(&txn, b"version")?;
         if let Some(version) = version {
@@ -68,7 +66,7 @@ impl IsarInstance {
                 .put(&txn, b"version", &u32::to_le_bytes(ISAR_VERSION))?;
         }
         Ok(())
-    }
+    }*/
 
     #[inline]
     pub fn begin_txn(&self, write: bool) -> Result<Txn> {

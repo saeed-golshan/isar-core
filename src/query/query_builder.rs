@@ -1,11 +1,11 @@
-use crate::query::filter::Filter;
+//use crate::query::filter::Filter;
 use crate::query::where_clause::WhereClause;
 use std::cmp::max;
 use std::ops::Deref;
 
 pub struct QueryBuilder {
     where_clauses: Vec<WhereClause>,
-    filter: Option<Filter>,
+    //filter: Option<Filter>,
 }
 
 impl QueryBuilder {

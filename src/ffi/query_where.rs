@@ -15,7 +15,7 @@ pub extern "C" fn isar_wc_create(
 #[no_mangle]
 pub extern "C" fn isar_wc_add_lower_int(
     where_clause: Option<&mut WhereClause>,
-    value: i64,
+    value: i32,
     include: bool,
 ) {
     where_clause.unwrap().add_lower_int(value, include);
@@ -24,10 +24,46 @@ pub extern "C" fn isar_wc_add_lower_int(
 #[no_mangle]
 pub extern "C" fn isar_wc_add_upper_int(
     where_clause: Option<&mut WhereClause>,
-    value: i64,
+    value: i32,
     include: bool,
 ) {
     where_clause.unwrap().add_upper_int(value, include);
+}
+
+#[no_mangle]
+pub extern "C" fn isar_wc_add_lower_long(
+    where_clause: Option<&mut WhereClause>,
+    value: i64,
+    include: bool,
+) {
+    where_clause.unwrap().add_lower_long(value, include);
+}
+
+#[no_mangle]
+pub extern "C" fn isar_wc_add_upper_long(
+    where_clause: Option<&mut WhereClause>,
+    value: i64,
+    include: bool,
+) {
+    where_clause.unwrap().add_upper_long(value, include);
+}
+
+#[no_mangle]
+pub extern "C" fn isar_wc_add_lower_float(
+    where_clause: Option<&mut WhereClause>,
+    value: f32,
+    include: bool,
+) {
+    where_clause.unwrap().add_lower_float(value, include);
+}
+
+#[no_mangle]
+pub extern "C" fn isar_wc_add_upper_float(
+    where_clause: Option<&mut WhereClause>,
+    value: f32,
+    include: bool,
+) {
+    where_clause.unwrap().add_upper_float(value, include);
 }
 
 #[no_mangle]
@@ -59,7 +95,7 @@ pub extern "C" fn isar_wc_add_bool(where_clause: Option<&mut WhereClause>, value
 }
 
 #[no_mangle]
-pub extern "C" fn isar_wc_add_string_hash(
+pub unsafe extern "C" fn isar_wc_add_string_hash(
     where_clause: Option<&mut WhereClause>,
     value: Option<*const c_char>,
 ) {
@@ -68,7 +104,7 @@ pub extern "C" fn isar_wc_add_string_hash(
 }
 
 #[no_mangle]
-pub extern "C" fn isar_wc_add_lower_string_value(
+pub unsafe extern "C" fn isar_wc_add_lower_string_value(
     where_clause: Option<&mut WhereClause>,
     value: Option<*const c_char>,
     include: bool,
@@ -78,7 +114,7 @@ pub extern "C" fn isar_wc_add_lower_string_value(
 }
 
 #[no_mangle]
-pub extern "C" fn isar_wc_add_upper_string_value(
+pub unsafe extern "C" fn isar_wc_add_upper_string_value(
     where_clause: Option<&mut WhereClause>,
     value: Option<*const c_char>,
     include: bool,

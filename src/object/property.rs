@@ -1,4 +1,4 @@
-use crate::error::{IsarError, Result};
+use enum_ordinalize::Ordinalize;
 use itertools::Itertools;
 use serde_repr::{Deserialize_repr, Serialize_repr};
 use std::convert::TryInto;
@@ -10,53 +10,40 @@ Binary format:
 All numbers are little endian!
 
 -- STATIC DATA --
-int1: i64
-..
-intN
+int1-N: i32
+long1-N: i64
+float1-N: f32
+double1-N: f64
+bool1-N: u8
 
-double1: f64
-..
-doubleN
-
-bool1: u8
-..
-boolN
-
-padding: (number of bools % 8) * \0
+padding: (number of bools % 4) * \0
 
 -- POINTERS --
-int_list1_offset: u32 (relative to beginning) OR 0 for null list
-int_list1_length: u32 OR 0 for null list
-..
-int_listN_offset
-int_listN_length
+int_list_offset: u32 (relative to beginning) OR 0 for null list
+int_list_length: u32 OR 0 for null list
 
-double_list1_offset
-double_list1_length
-..
-double_listN_offset
-double_listN_length
+long_list_offset
+long_list_length
 
-bool_list1_offset
-bool_list1_length
-..
-bool_listN_offset
-bool_listN_length
+float_list_offset
+float_list_length
 
-string1_offset: u32 (relative to beginning) OR 0 for null string
-string1_length: u32 number of BYTES OR 0 for null string
-..
-stringN_offset
-stringN_length
+double_list_offset
+double_list_length
 
-bytes1_offset: u32 (relative to beginning) OR 0 for null bytes
-bytes1_length: u32 number of bytes OR 0 for null bytes
-..
-bytesN_offset
-bytesN_length
+bool_list_offset
+bool_list_length
 
+string_offset: u32 (relative to beginning) OR 0 for null string
+string_length: u32 number of BYTES OR 0 for null string
+
+bytes_offset: u32 (relative to beginning) OR 0 for null bytes
+bytes_length: u32 number of bytes OR 0 for null bytes
+
+padding: (len(bool_lists) + len(string lists) + len(bytes_lists)) % 4
  */
 
+#[repr(C)]
 struct DataPosition {
     pub offset: u32,
     pub length: u32,
@@ -67,6 +54,7 @@ impl DataPosition {
         self.offset == 0
     }
 }
+
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub struct Property {
     pub name: String,
@@ -75,7 +63,9 @@ pub struct Property {
 }
 
 impl Property {
-    pub const NULL_INT: i64 = i64::MIN;
+    pub const NULL_INT: i32 = i32::MIN;
+    pub const NULL_LONG: i64 = i64::MIN;
+    pub const NULL_FLOAT: f32 = f32::NAN;
     pub const NULL_DOUBLE: f64 = f64::NAN;
     pub const NULL_BOOL: u8 = 0;
     pub const FALSE_BOOL: u8 = 1;
@@ -93,6 +83,8 @@ impl Property {
     pub fn is_null(&self, object: &[u8]) -> bool {
         match self.data_type {
             DataType::Int => self.get_int(object) == Self::NULL_INT,
+            DataType::Long => self.get_long(object) == Self::NULL_LONG,
+            DataType::Float => self.get_float(object).is_nan(),
             DataType::Double => self.get_double(object).is_nan(),
             DataType::Bool => self.get_bool(object).is_none(),
             _ => self.get_length(object).is_none(),
@@ -100,9 +92,23 @@ impl Property {
     }
 
     #[inline]
-    pub fn get_int(&self, object: &[u8]) -> i64 {
+    pub fn get_int(&self, object: &[u8]) -> i32 {
+        //TODO rely on alignment and transmute
+        let bytes: [u8; 4] = object[self.offset..self.offset + 4].try_into().unwrap();
+        i32::from_le_bytes(bytes)
+    }
+
+    #[inline]
+    pub fn get_long(&self, object: &[u8]) -> i64 {
         let bytes: [u8; 8] = object[self.offset..self.offset + 8].try_into().unwrap();
         i64::from_le_bytes(bytes)
+    }
+
+    #[inline]
+    pub fn get_float(&self, object: &[u8]) -> f32 {
+        //TODO rely on alignment and transmute
+        let bytes: [u8; 4] = object[self.offset..self.offset + 4].try_into().unwrap();
+        f32::from_le_bytes(bytes)
     }
 
     #[inline]
@@ -135,7 +141,15 @@ impl Property {
         self.get_list(object, self.offset)
     }
 
-    pub fn get_int_list<'a>(&self, object: &'a [u8]) -> Option<&'a [i64]> {
+    pub fn get_int_list<'a>(&self, object: &'a [u8]) -> Option<&'a [i32]> {
+        self.get_list(object, self.offset)
+    }
+
+    pub fn get_long_list<'a>(&self, object: &'a [u8]) -> Option<&'a [i64]> {
+        self.get_list(object, self.offset)
+    }
+
+    pub fn get_float_list<'a>(&self, object: &'a [u8]) -> Option<&'a [f32]> {
         self.get_list(object, self.offset)
     }
 
@@ -188,53 +202,35 @@ impl Property {
     }
 }
 
-#[derive(Ord, PartialOrd, PartialEq, Eq, Clone, Copy, Serialize_repr, Deserialize_repr, Debug)]
+#[derive(
+    Ord, PartialOrd, PartialEq, Eq, Clone, Copy, Serialize_repr, Deserialize_repr, Debug, Ordinalize,
+)]
 #[repr(u8)]
 pub enum DataType {
     Int = 0,
-    Double = 1,
-    Bool = 2,
-    String = 3,
-    Bytes = 4,
-    IntList = 5,
-    DoubleList = 6,
-    BoolList = 7,
-    StringList = 8,
-    BytesList = 9,
+    Long = 1,
+    Float = 2,
+    Double = 3,
+    Bool = 4,
+    String = 5,
+    Bytes = 6,
+    IntList = 7,
+    LongList = 8,
+    FloatList = 9,
+    DoubleList = 10,
+    BoolList = 11,
+    StringList = 12,
+    BytesList = 13,
 }
 
 impl DataType {
-    pub fn from_type_id(id: u8) -> Result<Self> {
-        let data_type = match id {
-            0 => DataType::Int,
-            1 => DataType::Double,
-            2 => DataType::Bool,
-            3 => DataType::String,
-            4 => DataType::Bytes,
-            5 => DataType::IntList,
-            6 => DataType::DoubleList,
-            7 => DataType::BoolList,
-            8 => DataType::StringList,
-            _ => {
-                return Err(IsarError::DbCorrupted {
-                    source: None,
-                    message: format!(
-                        "Property data type {} is not a valid type. Database may be corrupted.",
-                        id
-                    ),
-                });
-            }
-        };
-        Ok(data_type)
-    }
-
-    pub fn to_type_id(&self) -> u8 {
-        *self as u8
-    }
-
     pub fn is_dynamic(&self) -> bool {
         match *self {
-            DataType::Int | DataType::Double | DataType::Bool => false,
+            DataType::Int
+            | DataType::Long
+            | DataType::Float
+            | DataType::Double
+            | DataType::Bool => false,
             _ => true,
         }
     }
@@ -255,10 +251,10 @@ mod tests {
     #[test]
     fn test_int_property_is_null() {
         let property = Property::new("", DataType::Int, 0);
-        let null_bytes = i64::to_le_bytes(Property::NULL_INT);
+        let null_bytes = i32::to_le_bytes(Property::NULL_INT);
         assert!(property.is_null(&null_bytes));
 
-        let bytes = i64::to_le_bytes(0);
+        let bytes = i32::to_le_bytes(0);
         assert_eq!(property.is_null(&bytes), false);
     }
 

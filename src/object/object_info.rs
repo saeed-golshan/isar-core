@@ -1,6 +1,6 @@
 use crate::object::property::Property;
 
-pub struct ObjectInfo {
+pub(crate) struct ObjectInfo {
     pub(super) properties: Vec<Property>,
     pub(super) static_size: usize,
     pub(super) first_dynamic_property_index: Option<usize>,
@@ -31,6 +31,11 @@ impl ObjectInfo {
             .filter(|(_, property)| property.data_type.is_dynamic())
             .map(|(i, _)| i)
             .next()
+    }
+
+    #[cfg(test)]
+    pub fn debug_get_property(&self, name: &str) -> &Property {
+        self.properties.iter().find(|p| p.name == name).unwrap()
     }
 
     /*pub fn verify_object(&self, object: &[u8]) -> bool {

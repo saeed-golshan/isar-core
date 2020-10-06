@@ -7,6 +7,9 @@ use crate::query::where_clause::WhereClause;
 use std::mem::transmute;
 use wyhash::wyhash;
 
+#[cfg(test)]
+use {crate::utils::debug::dump_db, std::collections::HashMap};
+
 pub const MAX_STRING_INDEX_SIZE: usize = 1500;
 
 /*
@@ -88,6 +91,14 @@ impl Index {
                         let value = field.get_int(object);
                         Self::get_int_key(value)
                     }
+                    DataType::Long => {
+                        let value = field.get_long(object);
+                        Self::get_long_key(value)
+                    }
+                    DataType::Float => {
+                        let value = field.get_float(object);
+                        Self::get_float_key(value)
+                    }
                     DataType::Double => {
                         let value = field.get_double(object);
                         Self::get_double_key(value)
@@ -107,9 +118,32 @@ impl Index {
         bytes
     }
 
-    pub fn get_int_key(value: i64) -> Vec<u8> {
+    pub fn get_int_key(value: i32) -> Vec<u8> {
+        let unsigned = unsafe { transmute::<i32, u32>(value) };
+        u32::to_be_bytes(unsigned ^ 1 << 31).to_vec()
+    }
+
+    pub fn get_long_key(value: i64) -> Vec<u8> {
         let unsigned = unsafe { transmute::<i64, u64>(value) };
         u64::to_be_bytes(unsigned ^ 1 << 63).to_vec()
+    }
+
+    #[allow(clippy::transmute_float_to_int)]
+    pub fn get_float_key(value: f32) -> Vec<u8> {
+        if !value.is_nan() {
+            let mut bits = unsafe { std::mem::transmute::<f32, u32>(value) };
+            if value == 0.0 {
+                bits = 0;
+            }
+            if value.is_sign_positive() {
+                bits ^= 0x80000000;
+            } else if value.is_sign_negative() {
+                bits ^= 0xFFFFFFFF;
+            }
+            u32::to_be_bytes(bits + 1).to_vec()
+        } else {
+            vec![0]
+        }
     }
 
     #[allow(clippy::transmute_float_to_int)]
@@ -163,6 +197,16 @@ impl Index {
             vec![0]
         }
     }
+
+    #[cfg(test)]
+    pub fn debug_dump(&self, txn: &Txn) -> HashMap<Vec<u8>, Vec<u8>> {
+        dump_db(self.db, txn)
+    }
+
+    #[cfg(test)]
+    pub fn debug_create_key(&self, object: &[u8]) -> Vec<u8> {
+        self.create_key(object)
+    }
 }
 
 #[cfg(test)]
@@ -173,7 +217,7 @@ mod tests {
     fn test_create_key() {}
 
     #[test]
-    fn test_get_int_key() {
+    fn test_get_long_key() {
         let pairs = vec![
             (i64::MIN, vec![0, 0, 0, 0, 0, 0, 0, 0]),
             (i64::MIN + 1, vec![0, 0, 0, 0, 0, 0, 0, 1]),
@@ -184,7 +228,7 @@ mod tests {
             (i64::MAX, vec![255, 255, 255, 255, 255, 255, 255, 255]),
         ];
         for (val, bytes) in pairs {
-            assert_eq!(Index::get_int_key(val), bytes);
+            assert_eq!(Index::get_long_key(val), bytes);
         }
     }
 

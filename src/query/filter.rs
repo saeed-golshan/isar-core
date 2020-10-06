@@ -11,10 +11,14 @@ pub enum Case {
 
 #[enum_dispatch]
 pub enum Filter {
-    EqualsNull(EqualsNull),
-    NonNullFilter(NonNullFilter),
+    NullFilter(EqualsNull),
+    IsAnyNull(EqualsNull),
     IntBetween(IntBetween),
     IntAnyOf(IntAnyOf),
+    LongBetween(IntBetween),
+    LongAnyOf(IntAnyOf),
+    FloatBetween(DoubleBetween),
+    FloatAnyOf(DoubleAnyOf),
     DoubleBetween(DoubleBetween),
     DoubleAnyOf(DoubleAnyOf),
     //StrAnyOf(StrAnyOf),
@@ -23,7 +27,6 @@ pub enum Filter {
     StrContains(),*/
     And(And),
     Or(Or),
-    Not(Not),
 }
 
 /*impl Filter {

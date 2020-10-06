@@ -31,18 +31,52 @@ impl WhereClause {
         self.lower_key <= other.lower_key && self.upper_key >= other.upper_key
     }
 
-    pub fn add_lower_int(&mut self, mut value: i64, include: bool) {
+    pub fn add_lower_int(&mut self, mut value: i32, include: bool) {
         if !include {
             value += 1;
         }
         self.lower_key.extend_from_slice(&Index::get_int_key(value));
     }
 
-    pub fn add_upper_int(&mut self, mut value: i64, include: bool) {
+    pub fn add_upper_int(&mut self, mut value: i32, include: bool) {
         if !include {
             value -= 1;
         }
         self.upper_key.extend_from_slice(&Index::get_int_key(value));
+    }
+
+    pub fn add_lower_long(&mut self, mut value: i64, include: bool) {
+        if !include {
+            value += 1;
+        }
+        self.lower_key
+            .extend_from_slice(&Index::get_long_key(value));
+    }
+
+    pub fn add_upper_long(&mut self, mut value: i64, include: bool) {
+        if !include {
+            value -= 1;
+        }
+        self.upper_key
+            .extend_from_slice(&Index::get_long_key(value));
+    }
+
+    pub fn add_lower_float(&mut self, value: f32, include: bool) {
+        let mut key = Index::get_float_key(value);
+        if !include {
+            let u32_key = u32::from_be_bytes(key.as_slice().try_into().unwrap());
+            key = u32::to_be_bytes(u32_key + 1).to_vec();
+        }
+        self.lower_key.extend_from_slice(&key);
+    }
+
+    pub fn add_upper_float(&mut self, value: f32, include: bool) {
+        let mut key = Index::get_float_key(value);
+        if !include {
+            let u32_key = u32::from_be_bytes(key.as_slice().try_into().unwrap());
+            key = u32::to_be_bytes(u32_key - 1).to_vec();
+        }
+        self.upper_key.extend_from_slice(&key);
     }
 
     pub fn add_lower_double(&mut self, value: f64, include: bool) {

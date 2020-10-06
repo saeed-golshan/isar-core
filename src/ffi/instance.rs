@@ -23,7 +23,7 @@ pub unsafe extern "C" fn isar_create_instance(
 
 #[no_mangle]
 pub unsafe extern "C" fn isar_get_collection<'a>(
-    isar: Option<&'a IsarInstance>,
+    isar: Option<&'a mut IsarInstance>,
     collection: *mut &'a IsarCollection,
     index: u32,
 ) -> u8 {

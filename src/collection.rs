@@ -1,42 +1,38 @@
-use crate::error::{illegal_state, Result};
+use crate::error::Result;
 use crate::index::{Index, IndexType};
-use crate::link::Link;
 use crate::lmdb::db::Db;
 use crate::lmdb::txn::Txn;
-use crate::object::object_id::{ObjectId, ObjectIdGenerator};
+use crate::object::object_builder::ObjectBuilder;
+use crate::object::object_id::ObjectId;
+use crate::object::object_id_generator::ObjectIdGenerator;
 use crate::object::object_info::ObjectInfo;
 use crate::query::where_clause::WhereClause;
 use rand::random;
 
+#[cfg(test)]
+use {crate::utils::debug::dump_db, std::collections::HashMap};
+
 pub struct IsarCollection {
     prefix: [u8; 2],
     object_info: ObjectInfo,
-    links: Vec<Link>,
     indexes: Vec<Index>,
     db: Db,
     oidg: ObjectIdGenerator,
 }
 
 impl IsarCollection {
-    pub fn new(
-        id: u16,
-        object_info: ObjectInfo,
-        links: Vec<Link>,
-        indexes: Vec<Index>,
-        db: Db,
-    ) -> Self {
+    pub(crate) fn new(id: u16, object_info: ObjectInfo, indexes: Vec<Index>, db: Db) -> Self {
         IsarCollection {
             prefix: u16::to_le_bytes(id),
             object_info,
-            links,
             indexes,
             db,
             oidg: ObjectIdGenerator::new(random()),
         }
     }
 
-    pub fn get_object_info(&self) -> &ObjectInfo {
-        &self.object_info
+    pub fn get_object_builder(&self) -> ObjectBuilder {
+        ObjectBuilder::new(&self.object_info)
     }
 
     pub fn get<'txn>(&self, txn: &'txn Txn, oid: ObjectId) -> Result<Option<&'txn [u8]>> {
@@ -44,11 +40,9 @@ impl IsarCollection {
         self.db.get(txn, &oid_bytes)
     }
 
-    pub fn put(&mut self, txn: &Txn, oid: Option<ObjectId>, object: &[u8]) -> Result<ObjectId> {
+    pub fn put(&self, txn: &Txn, oid: Option<ObjectId>, object: &[u8]) -> Result<ObjectId> {
         let oid = if let Some(oid) = oid {
-            if !self.delete_from_indexes(txn, oid)? {
-                illegal_state("ObjectId provided but no entry found.")?;
-            }
+            self.delete_from_indexes(txn, oid)?;
             oid
         } else {
             self.oidg.generate()
@@ -104,5 +98,63 @@ impl IsarCollection {
         } else {
             Ok(false)
         }
+    }
+
+    #[cfg(test)]
+    fn debug_dump(&self, txn: &Txn) -> HashMap<Vec<u8>, Vec<u8>> {
+        dump_db(self.db, txn)
+    }
+}
+
+#[cfg(test)]
+
+mod test {
+    use crate::{create_col, map};
+
+    #[test]
+    fn test_put_single() {
+        create_col!(isar, col, field1 => Int);
+
+        let txn = isar.begin_txn(true).unwrap();
+        let object = 12345i32.to_le_bytes().to_vec();
+        let oid = col.put(&txn, None, &object).unwrap();
+
+        let oid_with_prefix = oid.to_bytes_with_prefix(&col.prefix);
+        assert_eq!(col.debug_dump(&txn), map!(oid_with_prefix => object));
+    }
+
+    #[test]
+    fn test_put_existing() {
+        create_col!(isar, col, field1 => Int);
+
+        let txn = isar.begin_txn(true).unwrap();
+
+        let object = 12345i32.to_le_bytes().to_vec();
+        let oid = col.put(&txn, None, &object).unwrap();
+
+        let object2 = 54321i32.to_le_bytes().to_vec();
+        let oid2 = col.put(&txn, Some(oid), &object2).unwrap();
+        assert_eq!(oid, oid2);
+
+        let oid_with_prefix = oid.to_bytes_with_prefix(&col.prefix);
+        assert_eq!(col.debug_dump(&txn), map!(oid_with_prefix => object2));
+    }
+
+    #[test]
+    fn test_put_creates_index() {
+        create_col!(isar, col, field1 => Int index field1);
+
+        let txn = isar.begin_txn(true).unwrap();
+
+        let object = 12345i32.to_le_bytes().to_vec();
+        let oid = col.put(&txn, None, &object).unwrap();
+
+        let index = &col.indexes[0];
+        let id = index.debug_dump(&txn);
+        println!("{:?}", id);
+        assert_eq!(
+            index.debug_dump(&txn),
+            map!(index.debug_create_key(&object) => oid.to_bytes().to_vec())
+        );
     }
 }

@@ -1,10 +1,13 @@
+#[macro_use]
+pub mod debug;
+
 use crate::error::{IsarError, Result};
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 use time::OffsetDateTime;
 
-pub fn from_c_str<'a>(str: *const c_char) -> Result<&'a str> {
-    let result = unsafe { CStr::from_ptr(str).to_str() };
+pub unsafe fn from_c_str<'a>(str: *const c_char) -> Result<&'a str> {
+    let result = CStr::from_ptr(str).to_str();
 
     match result {
         Ok(str) => Ok(str),

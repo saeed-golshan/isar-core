@@ -20,10 +20,12 @@ pub const EMPTY_VAL: ffi::MDB_val = ffi::MDB_val {
     mv_data: 0 as *mut c_void,
 };
 
+#[inline]
 pub unsafe fn from_mdb_val<'a>(val: ffi::MDB_val) -> &'a [u8] {
     slice::from_raw_parts(val.mv_data as *const u8, val.mv_size as usize)
 }
 
+#[inline]
 pub unsafe fn to_mdb_val(value: &[u8]) -> ffi::MDB_val {
     ffi::MDB_val {
         mv_size: value.len(),
