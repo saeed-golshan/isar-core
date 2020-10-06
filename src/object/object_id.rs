@@ -1,18 +1,18 @@
-use std::convert::TryInto;
-
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
-#[repr(C)]
+#[derive(Copy, Clone, Eq, Debug)]
+#[repr(packed)]
 pub struct ObjectId {
-    _padding: u32,
-    time: u32,
+    prefix: u16,
+    time: u32, // big endian
     rand_counter: u64,
+    _padding: u16,
 }
 
 impl ObjectId {
     pub fn new(time: u32, rand_counter: u64) -> Self {
         ObjectId {
-            time,
+            time: time.to_be(),
             rand_counter,
+            prefix: 0,
             _padding: 0,
         }
     }
@@ -25,32 +25,45 @@ impl ObjectId {
         self.rand_counter
     }
 
-    pub fn to_bytes(&self) -> &[u8] {
+    #[inline]
+    pub fn as_bytes(&self) -> &[u8] {
         let bytes = unsafe {
             ::std::slice::from_raw_parts(
                 (self as *const Self) as *const u8,
                 ::std::mem::size_of::<Self>(),
             )
         };
-        &bytes[4..16]
+        &bytes[2..14]
     }
 
-    pub fn to_bytes_with_prefix(&self, prefix: &[u8]) -> Vec<u8> {
-        let mut bytes = prefix.to_vec();
-        bytes.extend_from_slice(&self.to_bytes());
-        bytes.extend_from_slice(&[0, 0]);
-        bytes
+    #[inline]
+    pub fn as_bytes_with_prefix(&mut self, prefix: u16) -> &[u8] {
+        self.prefix = prefix;
+        let bytes = unsafe {
+            ::std::slice::from_raw_parts(
+                (self as *const Self) as *const u8,
+                ::std::mem::size_of::<Self>(),
+            )
+        };
+        &bytes[..14]
     }
 
-    pub fn from_bytes(bytes: &[u8]) -> Self {
-        let (_, body, _) = unsafe { bytes.align_to::<Self>() };
-        body[0]
+    #[inline]
+    pub fn as_bytes_with_prefix_padding(&mut self, prefix: u16) -> &[u8] {
+        self.prefix = prefix;
+        let bytes = unsafe {
+            ::std::slice::from_raw_parts(
+                (self as *const Self) as *const u8,
+                ::std::mem::size_of::<Self>(),
+            )
+        };
+        &bytes
     }
+}
 
-    pub fn from_bytes_with_prefix(bytes: &[u8]) -> (u16, Self) {
-        let prefix = u16::from_be_bytes(bytes.try_into().unwrap());
-        let oid = Self::from_bytes(&bytes[2..]);
-        (prefix, oid)
+impl PartialEq for ObjectId {
+    fn eq(&self, other: &Self) -> bool {
+        other.time == self.time && other.rand_counter == self.rand_counter
     }
 }
 
@@ -59,8 +72,26 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_to_bytes() {
+    fn test_as_bytes() {
         let oid = ObjectId::new(123, 222);
-        assert_eq!(oid.to_bytes(), &[123, 0, 0, 0, 222, 0, 0, 0, 0, 0, 0, 0])
+        assert_eq!(oid.as_bytes(), &[0, 0, 0, 123, 222, 0, 0, 0, 0, 0, 0, 0])
+    }
+
+    #[test]
+    fn test_as_bytes_prefix() {
+        let mut oid = ObjectId::new(123, 222);
+        assert_eq!(
+            oid.as_bytes_with_prefix(99),
+            &[99, 0, 0, 0, 0, 123, 222, 0, 0, 0, 0, 0, 0, 0]
+        )
+    }
+
+    #[test]
+    fn test_as_bytes_prefix_padding() {
+        let mut oid = ObjectId::new(123, 222);
+        assert_eq!(
+            oid.as_bytes_with_prefix_padding(99),
+            &[99, 0, 0, 0, 0, 123, 222, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        )
     }
 }
