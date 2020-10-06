@@ -2,6 +2,7 @@
 #![feature(is_sorted)]
 #![feature(trait_alias)]
 #![allow(clippy::try_err)]
+#![feature(stmt_expr_attributes)]
 
 #[cfg(not(target_endian = "little"))]
 compile_error!("Only little endian systems are supported at this time.");

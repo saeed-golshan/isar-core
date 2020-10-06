@@ -13,25 +13,14 @@ pub struct Db {
 }
 
 impl Db {
-    pub fn open(
-        txn: &Txn,
-        name: &str,
-        int_keys: bool,
-        dup: bool,
-        fixed_vals: bool,
-    ) -> Result<Self> {
+    pub fn open(txn: &Txn, name: &str, dup: bool, fixed_vals: bool) -> Result<Self> {
         let name = to_c_str(name)?;
         let mut flags = ffi::MDB_CREATE;
         if dup {
             flags |= ffi::MDB_DUPSORT;
-            if int_keys {
-                flags |= ffi::MDB_INTEGERDUP;
-            }
             if fixed_vals {
                 flags |= ffi::MDB_DUPFIXED;
             }
-        } else if int_keys {
-            flags |= ffi::MDB_INTEGERKEY;
         }
 
         let mut dbi: ffi::MDB_dbi = 0;
@@ -109,6 +98,20 @@ impl Db {
         Ok(())
     }
 
+    pub fn delete_key_prefix(&self, txn: &Txn, key_prefix: &[u8]) -> Result<()> {
+        let cursor = self.cursor(txn)?;
+        cursor.move_to_key_greater_than_or_equal_to(key_prefix)?;
+        for item in cursor.iter() {
+            let (key, _) = item?;
+            if &key[0..key_prefix.len()] != key_prefix {
+                break;
+            }
+
+            cursor.delete_current(false)?;
+        }
+        Ok(())
+    }
+
     pub fn clear(&self, txn: &Txn) -> Result<()> {
         unsafe {
             lmdb_result(ffi::mdb_drop(txn.txn, self.dbi, 0))?;
@@ -136,35 +139,19 @@ mod tests {
         let env = get_env();
 
         let read_txn = env.txn(false).unwrap();
-        assert!(Db::open(&read_txn, "test", false, false, false).is_err());
+        assert!(Db::open(&read_txn, "test", false, false).is_err());
         read_txn.abort();
 
         let flags = vec![
-            (false, false, false, 0),
-            (false, false, true, 0),
-            (false, true, false, ffi::MDB_DUPSORT),
-            (false, true, true, ffi::MDB_DUPSORT | ffi::MDB_DUPFIXED),
-            (true, false, false, ffi::MDB_INTEGERKEY),
-            (true, false, true, ffi::MDB_INTEGERKEY),
-            (true, true, false, ffi::MDB_DUPSORT | ffi::MDB_INTEGERDUP),
-            (
-                true,
-                true,
-                true,
-                ffi::MDB_DUPSORT | ffi::MDB_INTEGERDUP | ffi::MDB_DUPFIXED,
-            ),
+            (false, false, 0),
+            (false, true, 0),
+            (true, false, ffi::MDB_DUPSORT),
+            (true, true, ffi::MDB_DUPSORT | ffi::MDB_DUPFIXED),
         ];
 
-        for (i, (int_keys, dup, fixed_vals, flags)) in flags.iter().enumerate() {
+        for (i, (dup, fixed_vals, flags)) in flags.iter().enumerate() {
             let txn = env.txn(true).unwrap();
-            let db = Db::open(
-                &txn,
-                format!("test{}", i).as_str(),
-                *int_keys,
-                *dup,
-                *fixed_vals,
-            )
-            .unwrap();
+            let db = Db::open(&txn, format!("test{}", i).as_str(), *dup, *fixed_vals).unwrap();
             txn.commit().unwrap();
 
             let mut actual_flags: u32 = 0;
@@ -181,7 +168,7 @@ mod tests {
     fn test_get_put_delete() {
         let env = get_env();
         let txn = env.txn(true).unwrap();
-        let db = Db::open(&txn, "test", false, false, false).unwrap();
+        let db = Db::open(&txn, "test", false, false).unwrap();
         db.put(&txn, b"key1", b"val1").unwrap();
         db.put(&txn, b"key2", b"val2").unwrap();
         db.put(&txn, b"key3", b"val3").unwrap();
@@ -203,7 +190,7 @@ mod tests {
     fn test_put_get_del_multi() {
         let env = get_env();
         let txn = env.txn(true).unwrap();
-        let db = Db::open(&txn, "test", false, true, false).unwrap();
+        let db = Db::open(&txn, "test", true, false).unwrap();
 
         db.put(&txn, b"key1", b"val1").unwrap();
         db.put(&txn, b"key1", b"val2").unwrap();
@@ -250,7 +237,7 @@ mod tests {
     fn test_clear_db() {
         let env = get_env();
         let txn = env.txn(true).unwrap();
-        let db = Db::open(&txn, "test", false, false, false).unwrap();
+        let db = Db::open(&txn, "test", false, false).unwrap();
         db.put(&txn, b"key1", b"val1").unwrap();
         db.put(&txn, b"key2", b"val2").unwrap();
         db.put(&txn, b"keye", b"val3").unwrap();

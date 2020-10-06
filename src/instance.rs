@@ -36,11 +36,11 @@ impl IsarInstance {
 
     fn open_databases(env: &Env) -> Result<DataDbs> {
         let txn = env.txn(true)?;
-        let info = Db::open(&txn, "info", false, false, false)?;
-        let primary = Db::open(&txn, "data", true, false, false)?;
-        let secondary = Db::open(&txn, "index", false, false, true)?;
-        let secondary_dup = Db::open(&txn, "index_dup", false, true, true)?;
-        let links = Db::open(&txn, "links", true, true, true)?;
+        let info = Db::open(&txn, "info", false, false)?;
+        let primary = Db::open(&txn, "data", false, false)?;
+        let secondary = Db::open(&txn, "index", false, true)?;
+        let secondary_dup = Db::open(&txn, "index_dup", true, true)?;
+        let links = Db::open(&txn, "links", true, true)?;
         txn.commit()?;
         Ok(DataDbs {
             info,

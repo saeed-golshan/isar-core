@@ -121,8 +121,8 @@ impl Property {
     pub fn get_bool(&self, object: &[u8]) -> Option<bool> {
         match object[self.offset] {
             Self::NULL_BOOL => None,
-            Self::TRUE_BOOL => Some(false),
-            Self::FALSE_BOOL => Some(true),
+            Self::FALSE_BOOL => Some(false),
+            Self::TRUE_BOOL => Some(true),
             _ => panic!("Unexpected bool value"),
         }
     }
@@ -225,14 +225,10 @@ pub enum DataType {
 
 impl DataType {
     pub fn is_dynamic(&self) -> bool {
-        match *self {
-            DataType::Int
-            | DataType::Long
-            | DataType::Float
-            | DataType::Double
-            | DataType::Bool => false,
-            _ => true,
-        }
+        !matches!(
+            &self,
+            DataType::Int | DataType::Long | DataType::Float | DataType::Double | DataType::Bool
+        )
     }
 
     pub fn get_static_size(&self) -> usize {

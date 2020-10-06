@@ -29,7 +29,7 @@ impl ObjectIdGenerator {
     pub fn generate(&self) -> ObjectId {
         let time = (self.time)();
         let random_number: u64 = (self.random)();
-        let rand_counter = random_number << 16 | self.counter.get() as u64;
+        let rand_counter = self.counter.get().to_be() as u64 | random_number << 16;
         self.counter.set(self.counter.get().wrapping_add(1));
 
         ObjectId::new((time & 0xFFFFFFFF) as u32, rand_counter)

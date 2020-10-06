@@ -86,10 +86,6 @@ impl<'txn> Cursor<'txn> {
         self.op_get(ffi::MDB_NEXT, None)
     }
 
-    pub fn move_to_next_dup(&self) -> Result<Option<KeyVal<'txn>>> {
-        self.op_get(ffi::MDB_NEXT_DUP, None)
-    }
-
     pub fn delete_current(&self, delete_dup: bool) -> Result<()> {
         let op = if delete_dup { ffi::MDB_NODUPDATA } else { 0 };
 
@@ -98,21 +94,12 @@ impl<'txn> Cursor<'txn> {
         Ok(())
     }
 
-    pub fn delete_key_prefix(&self, key_prefix: &[u8]) -> Result<()> {
-        self.move_to_key_greater_than_or_equal_to(key_prefix)?;
-        for item in self.iter() {
-            let (key, _) = item?;
-            if key[0..4] != key_prefix[..] {
-                break;
-            }
-
-            self.delete_current(false)?;
-        }
-        Ok(())
-    }
-
     pub fn iter<'a>(&'a self) -> CursorIterator<'a, 'txn> {
         CursorIterator::new(self, ffi::MDB_GET_CURRENT, ffi::MDB_NEXT)
+    }
+
+    pub fn iter_dup<'a>(&'a self) -> CursorIterator<'a, 'txn> {
+        CursorIterator::new(self, ffi::MDB_GET_CURRENT, ffi::MDB_NEXT_DUP)
     }
 
     pub fn iter_from_first<'a>(&'a self) -> CursorIterator<'a, 'txn> {
