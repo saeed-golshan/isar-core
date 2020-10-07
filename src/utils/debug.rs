@@ -57,7 +57,7 @@ macro_rules! col (
 
 pub fn dump_db(db: Db, txn: &Txn, prefix: Option<&[u8]>) -> HashMap<Vec<u8>, Vec<u8>> {
     let mut map = HashMap::new();
-    let cursor = db.cursor(&txn).unwrap();
+    let mut cursor = db.cursor(&txn).unwrap();
 
     if let Some(prefix) = prefix {
         cursor.move_to_key_greater_than_or_equal_to(prefix).unwrap();
@@ -68,7 +68,6 @@ pub fn dump_db(db: Db, txn: &Txn, prefix: Option<&[u8]>) -> HashMap<Vec<u8>, Vec
     for kv in cursor.iter() {
         let (key, val) = kv.unwrap();
         if prefix.is_some() && !key.starts_with(prefix.unwrap()) {
-            println!("ERROR!");
             break;
         }
         map.insert(key.to_vec(), val.to_vec());

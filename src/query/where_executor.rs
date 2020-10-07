@@ -1,32 +1,36 @@
 use crate::error::{illegal_state, Result};
 use crate::index::IndexType;
 use crate::lmdb::cursor::Cursor;
+use crate::option;
 use crate::query::where_clause::WhereClause;
 use std::collections::HashSet;
 
-struct WhereExecutor<'a, 'txn> {
+pub(super) struct WhereExecutor<'a, 'txn> {
     where_clauses: &'a [WhereClause],
+    where_clauses_overlapping: bool,
     primary_cursor: Cursor<'txn>,
     secondary_cursor: Option<Cursor<'txn>>,
-    secondary_cursor_dup: Option<Cursor<'txn>>,
+    secondary_dup_cursor: Option<Cursor<'txn>>,
 }
 
 impl<'a, 'txn> WhereExecutor<'a, 'txn> {
     pub fn new(
         primary_cursor: Cursor<'txn>,
         secondary_cursor: Option<Cursor<'txn>>,
-        secondary_cursor_dup: Option<Cursor<'txn>>,
+        secondary_dup_cursor: Option<Cursor<'txn>>,
         where_clauses: &'a [WhereClause],
+        where_clauses_overlapping: bool,
     ) -> Self {
         WhereExecutor {
             where_clauses,
+            where_clauses_overlapping,
             primary_cursor,
             secondary_cursor,
-            secondary_cursor_dup,
+            secondary_dup_cursor,
         }
     }
 
-    fn run<F>(&mut self, mut callback: F) -> Result<()>
+    pub fn run<F>(&mut self, mut callback: F) -> Result<()>
     where
         F: FnMut(&'txn [u8], &'txn [u8]) -> bool,
     {
@@ -37,11 +41,7 @@ impl<'a, 'txn> WhereExecutor<'a, 'txn> {
             }
             _ => {
                 let mut hash_set = HashSet::new();
-                let mut result_ids = if true/*self.check_where_clauses_overlap()*/ {
-                    Some(&mut hash_set)
-                } else {
-                    None
-                };
+                let mut result_ids = option!(self.where_clauses_overlapping, &mut hash_set);
                 for where_clause in self.where_clauses {
                     let result =
                         self.execute_where_clause(&where_clause, &mut result_ids, &mut callback)?;
@@ -98,7 +98,7 @@ impl<'a, 'txn> WhereExecutor<'a, 'txn> {
         let cursor = if where_clause.index_type == IndexType::Secondary {
             self.secondary_cursor.as_mut().unwrap()
         } else {
-            self.secondary_cursor_dup.as_mut().unwrap()
+            self.secondary_dup_cursor.as_mut().unwrap()
         };
         let iter = where_clause.iter(cursor)?;
         for index_entry in iter {

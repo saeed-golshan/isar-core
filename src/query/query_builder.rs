@@ -1,15 +1,36 @@
 //use crate::query::filter::Filter;
+use crate::lmdb::db::Db;
+use crate::option;
+use crate::query::query::Query;
 use crate::query::where_clause::WhereClause;
-use std::cmp::max;
-use std::ops::Deref;
 
 pub struct QueryBuilder {
     where_clauses: Vec<WhereClause>,
+    primary_db: Db,
+    secondary_db: Db,
+    secondary_dup_db: Db,
+    has_secondary_where: bool,
+    has_secondary_dup_where: bool,
     //filter: Option<Filter>,
 }
 
 impl QueryBuilder {
-    fn merge_where_clauses(mut where_clauses: Vec<WhereClause>) -> Vec<WhereClause> {
+    pub(crate) fn new(primary_db: Db, secondary_db: Db, secondary_dup_db: Db) -> QueryBuilder {
+        QueryBuilder {
+            where_clauses: vec![],
+            primary_db,
+            secondary_db,
+            secondary_dup_db,
+            has_secondary_where: false,
+            has_secondary_dup_where: false,
+        }
+    }
+
+    pub fn add_where_clause(&mut self, wc: WhereClause) {
+        self.where_clauses.push(wc)
+    }
+
+    /*pub fn merge_where_clauses(mut where_clauses: Vec<WhereClause>) -> Vec<WhereClause> {
         where_clauses.sort_unstable_by(|a, b| a.lower_key.cmp(&b.lower_key));
 
         let mut merged = vec![];
@@ -41,5 +62,16 @@ impl QueryBuilder {
         }
 
         merged
+    }*/
+
+    pub fn build(self) -> Query {
+        let secondary_db = option!(self.has_secondary_where, self.secondary_db);
+        let secondary_dup_db = option!(self.has_secondary_dup_where, self.secondary_dup_db);
+        Query::new(
+            self.where_clauses,
+            self.primary_db,
+            secondary_db,
+            secondary_dup_db,
+        )
     }
 }

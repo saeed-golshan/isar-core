@@ -4,13 +4,14 @@ use crate::error::*;
 use crate::lmdb::db::Db;
 use crate::lmdb::env::Env;
 use crate::lmdb::txn::Txn;
+use crate::query::query_builder::QueryBuilder;
 use crate::schema::Schema;
 
 pub const ISAR_VERSION: u32 = 1;
 
 pub struct IsarInstance {
     env: Env,
-    //dbs: DataDbs,
+    dbs: DataDbs,
     collections: Vec<IsarCollection>,
     //path: String,
 }
@@ -28,7 +29,7 @@ impl IsarInstance {
 
         Ok(IsarInstance {
             env,
-            //dbs,
+            dbs,
             collections,
             //path: path.to_string(),
         })
@@ -75,5 +76,9 @@ impl IsarInstance {
 
     pub fn get_collection(&self, collection_index: usize) -> Option<&IsarCollection> {
         self.collections.get(collection_index)
+    }
+
+    pub fn create_query_builder(&self) -> QueryBuilder {
+        QueryBuilder::new(self.dbs.primary, self.dbs.secondary, self.dbs.secondary_dup)
     }
 }

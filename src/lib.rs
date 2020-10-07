@@ -1,7 +1,4 @@
 #![feature(backtrace)]
-#![feature(is_sorted)]
-#![feature(trait_alias)]
-#![allow(clippy::try_err)]
 #![feature(stmt_expr_attributes)]
 
 #[cfg(not(target_endian = "little"))]
@@ -17,7 +14,6 @@ mod index;
 pub mod instance;
 //mod link;
 pub mod lmdb;
+pub mod object;
 pub mod query;
 pub mod schema;
-//pub mod schema_diff;
-pub mod object;

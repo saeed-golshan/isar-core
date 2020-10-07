@@ -1,44 +1,58 @@
-use crate::data_dbs::IndexType;
-use crate::index::Index;
-use crate::query::filter::Filter;
+use crate::error::Result;
+use crate::lmdb::db::Db;
+use crate::lmdb::txn::Txn;
 use crate::query::where_clause::WhereClause;
-use itertools::Itertools;
-use std::borrow::Borrow;
-use std::cell::Cell;
-use std::cmp::max;
-use std::ops::Deref;
+use crate::query::where_executor::WhereExecutor;
 
 pub struct Query {
     where_clauses: Vec<WhereClause>,
-    filter: Option<Filter>,
+    where_clauses_overlapping: bool,
+    primary_db: Db,
+    secondary_db: Option<Db>,
+    secondary_dup_db: Option<Db>,
+    //filter: Option<Filter>,
 }
 
 impl Query {
-    pub(crate) fn new() -> Self {
+    pub(crate) fn new(
+        where_clauses: Vec<WhereClause>,
+        primary_db: Db,
+        secondary_db: Option<Db>,
+        secondary_dup_db: Option<Db>,
+    ) -> Self {
         Query {
-            where_clauses: Vec::new(),
-            filter: None,
+            where_clauses,
+            where_clauses_overlapping: true,
+            primary_db,
+            secondary_db,
+            secondary_dup_db,
+            //filter: None,
         }
     }
 
-    pub(crate) fn add_where(&mut self, where_clause: WhereClause) {
-        self.where_clauses.push(where_clause);
-    }
-
-    pub fn set_filter(&mut self, filter: Filter) {
-        self.filter = Some(filter);
-    }
-
-    /*fn execute<F>(&self, trx: &'trx RoTransaction<'trx>, mut callback: F) -> Result<(), Error>
+    fn execute<'txn, F>(&self, txn: &'txn Txn, mut callback: F) -> Result<()>
     where
-        F: FnMut(&'trx [u8], &'trx [u8]) -> bool,
+        F: FnMut(&'txn [u8], &'txn [u8]) -> bool,
     {
-        let executor = WhereExecutor {
-            where_clauses: &self.where_clauses,
-            hive_box: self.hive_box,
-            trx,
+        let primary_cursor = self.primary_db.cursor(&txn)?;
+        let secondary_cursor = if let Some(db) = self.secondary_db {
+            Some(db.cursor(&txn)?)
+        } else {
+            None
         };
-        if let Some(filter) = &self.filter {
+        let secondary_dup_cursor = if let Some(db) = self.secondary_dup_db {
+            Some(db.cursor(&txn)?)
+        } else {
+            None
+        };
+        let mut executor = WhereExecutor::new(
+            primary_cursor,
+            secondary_cursor,
+            secondary_dup_cursor,
+            &self.where_clauses,
+            self.where_clauses_overlapping,
+        );
+        /*if let Some(filter) = &self.filter {
             executor.run(|key, val| {
                 if filter.evaluate(val) {
                     callback(key, val)
@@ -46,27 +60,27 @@ impl Query {
                     true
                 }
             })
-        } else {
-            executor.run(callback)
-        }
+        } else {*/
+        executor.run(callback)
+        // }
     }
 
-    pub fn count(&self, trx: &'trx RoTransaction<'trx>) -> Result<u32, Error> {
+    pub fn count(&self, txn: &Txn) -> Result<u32> {
         let mut counter = 0;
-        self.execute(trx, &mut |_, _| {
+        self.execute(txn, &mut |_, _| {
             counter += 1;
             true
         })?;
         Ok(counter)
     }
 
-    pub fn get_all(&self, trx: &'trx RoTransaction<'trx>) -> Result<Vec<&[u8]>, Error> {
+    pub fn get_all<'txn>(&self, txn: &'txn Txn) -> Result<Vec<&'txn [u8]>> {
         let mut vec = Vec::new();
-        self.execute(trx, |_, val: &'trx [u8]| {
+        self.execute(txn, |key, val| {
             vec.push(val);
             true
         })?;
 
         Ok(vec)
-    }*/
+    }
 }

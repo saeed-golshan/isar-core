@@ -10,6 +10,7 @@ use std::ptr;
 #[derive(Copy, Clone)]
 pub struct Db {
     pub dbi: ffi::MDB_dbi,
+    pub dup: bool,
 }
 
 impl Db {
@@ -27,7 +28,7 @@ impl Db {
         unsafe {
             lmdb_result(ffi::mdb_dbi_open(txn.txn, name.as_ptr(), flags, &mut dbi))?;
         }
-        Ok(Self { dbi })
+        Ok(Self { dbi, dup })
     }
 
     pub fn get<'txn>(&self, txn: &'txn Txn, key: &[u8]) -> Result<Option<&'txn [u8]>> {
@@ -99,15 +100,13 @@ impl Db {
     }
 
     pub fn delete_key_prefix(&self, txn: &Txn, key_prefix: &[u8]) -> Result<()> {
-        let cursor = self.cursor(txn)?;
-        cursor.move_to_key_greater_than_or_equal_to(key_prefix)?;
-        for item in cursor.iter() {
-            let (key, _) = item?;
-            if &key[0..key_prefix.len()] != key_prefix {
-                break;
+        let mut cursor = self.cursor(txn)?;
+        let check_prefix = |key: &[u8], _: &[u8]| &key[0..key_prefix.len()] == key_prefix;
+        if let Some((key, val)) = cursor.move_to_key_greater_than_or_equal_to(key_prefix)? {
+            if check_prefix(key, val) {
+                cursor.delete_current(self.dup)?;
+                cursor.delete_while(check_prefix, self.dup)?;
             }
-
-            cursor.delete_current(false)?;
         }
         Ok(())
     }
@@ -123,9 +122,6 @@ impl Db {
         Cursor::open(txn, &self)
     }
 }
-
-#[cfg(test)]
-pub const DUMMY_DB: Db = Db { dbi: 0 };
 
 #[cfg(test)]
 mod tests {
@@ -221,7 +217,7 @@ mod tests {
 
         let txn = env.txn(true).unwrap();
         {
-            let cur = db.cursor(&txn).unwrap();
+            let mut cur = db.cursor(&txn).unwrap();
             cur.move_to_first().unwrap();
             let iter = cur.iter();
             let vals: Result<Vec<&[u8]>> = iter.map_results(|x| x.1).collect();
@@ -249,7 +245,7 @@ mod tests {
 
         let txn = env.txn(false).unwrap();
         {
-            let cursor = db.cursor(&txn).unwrap();
+            let mut cursor = db.cursor(&txn).unwrap();
             assert!(cursor.move_to_first().unwrap().is_none());
         }
         txn.abort();

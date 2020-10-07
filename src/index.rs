@@ -51,13 +51,13 @@ impl Index {
         }
     }
 
-    pub fn create_for_object(&self, txn: &Txn, oid: ObjectId, object: &[u8]) -> Result<()> {
+    pub(crate) fn create_for_object(&self, txn: &Txn, oid: ObjectId, object: &[u8]) -> Result<()> {
         let index_key = self.create_key(object);
         let oid_bytes = oid.as_bytes();
         self.db.put(txn, &index_key, oid_bytes)
     }
 
-    pub fn delete_for_object(&self, txn: &Txn, oid: ObjectId, object: &[u8]) -> Result<()> {
+    pub(crate) fn delete_for_object(&self, txn: &Txn, oid: ObjectId, object: &[u8]) -> Result<()> {
         let index_key = self.create_key(object);
         if self.index_type == IndexType::SecondaryDup {
             self.db.delete(txn, &index_key, Some(oid.as_bytes()))
@@ -76,44 +76,42 @@ impl Index {
 
     fn create_key(&self, object: &[u8]) -> Vec<u8> {
         let mut bytes = self.prefix.to_vec();
-        if self.hash_value {
-            let property = self.properties.first().unwrap();
-            assert_eq!(property.data_type, DataType::String);
-            let value = property.get_bytes(object);
-            bytes.extend(Self::get_string_value_key(value))
-        } else {
-            let index_iter = self
-                .properties
-                .iter()
-                .flat_map(|field| match field.data_type {
-                    DataType::Int => {
-                        let value = field.get_int(object);
-                        Self::get_int_key(value)
-                    }
-                    DataType::Long => {
-                        let value = field.get_long(object);
-                        Self::get_long_key(value)
-                    }
-                    DataType::Float => {
-                        let value = field.get_float(object);
-                        Self::get_float_key(value)
-                    }
-                    DataType::Double => {
-                        let value = field.get_double(object);
-                        Self::get_double_key(value)
-                    }
-                    DataType::Bool => {
-                        let value = field.get_bool(object);
-                        Self::get_bool_key(value)
-                    }
-                    DataType::String => {
-                        let value = field.get_bytes(object);
+        let index_iter = self
+            .properties
+            .iter()
+            .flat_map(|property| match property.data_type {
+                DataType::Int => {
+                    let value = property.get_int(object);
+                    Self::get_int_key(value)
+                }
+                DataType::Long => {
+                    let value = property.get_long(object);
+                    Self::get_long_key(value)
+                }
+                DataType::Float => {
+                    let value = property.get_float(object);
+                    Self::get_float_key(value)
+                }
+                DataType::Double => {
+                    let value = property.get_double(object);
+                    Self::get_double_key(value)
+                }
+                DataType::Bool => {
+                    let value = property.get_bool(object);
+                    Self::get_bool_key(value)
+                }
+                DataType::String => {
+                    if self.hash_value {
+                        let value = property.get_bytes(object);
                         Self::get_string_hash_key(value)
+                    } else {
+                        let value = property.get_bytes(object);
+                        Self::get_string_value_key(value)
                     }
-                    _ => unimplemented!(),
-                });
-            bytes.extend(index_iter);
-        }
+                }
+                _ => unimplemented!(),
+            });
+        bytes.extend(index_iter);
         bytes
     }
 
@@ -182,7 +180,7 @@ impl Index {
 
     pub fn get_string_value_key(value: Option<&[u8]>) -> Vec<u8> {
         if let Some(value) = value {
-            let mut bytes = vec![1];
+            let mut bytes = vec![];
             if value.len() >= MAX_STRING_INDEX_SIZE {
                 bytes.extend_from_slice(&value[0..MAX_STRING_INDEX_SIZE]);
                 let hash = wyhash(&bytes, 0);
@@ -208,6 +206,11 @@ impl Index {
     #[cfg(test)]
     pub fn debug_create_key(&self, object: &[u8]) -> Vec<u8> {
         self.create_key(object)[2..].to_vec()
+    }
+
+    #[cfg(test)]
+    pub fn debug_get_db(&self) -> &Db {
+        &self.db
     }
 }
 
@@ -345,20 +348,9 @@ mod tests {
     fn test_get_string_value_key() {
         let long_str = (0..1500).map(|_| "a").collect::<String>();
 
-        let pairs: Vec<(&str, Vec<u8>)> = vec![
-            ("hello", vec![196, 78, 229, 110, 148, 114, 106, 255]),
-            (
-                "this is just a test",
-                vec![35, 152, 168, 2, 106, 235, 53, 50],
-            ),
-            (
-                &long_str[..1499],
-                vec![241, 58, 121, 152, 47, 193, 215, 217],
-            ),
-            (&long_str[..], vec![107, 96, 243, 122, 159, 148, 180, 244]),
-        ];
+        let pairs: Vec<(&str, Vec<u8>)> = vec![("hello", b"hello".to_vec())];
         for (str, hash) in pairs {
-            assert_eq!(hash, Index::get_string_hash_key(Some(str.as_bytes())));
+            assert_eq!(hash, Index::get_string_value_key(Some(str.as_bytes())));
         }
     }
 }

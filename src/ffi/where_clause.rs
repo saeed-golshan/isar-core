@@ -97,28 +97,40 @@ pub extern "C" fn isar_wc_add_bool(where_clause: Option<&mut WhereClause>, value
 #[no_mangle]
 pub unsafe extern "C" fn isar_wc_add_string_hash(
     where_clause: Option<&mut WhereClause>,
-    value: Option<*const c_char>,
+    value: *const c_char,
 ) {
-    let str = value.map(|str| from_c_str(str).unwrap());
+    let str = if !value.is_null() {
+        Some(from_c_str(value).unwrap())
+    } else {
+        None
+    };
     where_clause.unwrap().add_string_hash(str);
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn isar_wc_add_lower_string_value(
     where_clause: Option<&mut WhereClause>,
-    value: Option<*const c_char>,
+    value: *const c_char,
     include: bool,
 ) {
-    let str = value.map(|str| from_c_str(str).unwrap());
+    let str = if !value.is_null() {
+        Some(from_c_str(value).unwrap())
+    } else {
+        None
+    };
     where_clause.unwrap().add_lower_string_value(str, include);
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn isar_wc_add_upper_string_value(
     where_clause: Option<&mut WhereClause>,
-    value: Option<*const c_char>,
+    value: *const c_char,
     include: bool,
 ) {
-    let str = value.map(|str| from_c_str(str).unwrap());
+    let str = if !value.is_null() {
+        Some(from_c_str(value).unwrap())
+    } else {
+        None
+    };
     where_clause.unwrap().add_upper_string_value(str, include);
 }

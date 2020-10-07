@@ -72,7 +72,7 @@ impl<'a> ObjectBuilder<'a> {
 
     pub fn write_string(&mut self, value: Option<&str>) {
         let (offset, data_type) = self.get_next_property();
-        assert_eq!(data_type, DataType::Bytes);
+        assert_eq!(data_type, DataType::String);
         self.write_list(offset, value.map(|s| s.as_bytes()));
     }
 

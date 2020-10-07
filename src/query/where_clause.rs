@@ -6,9 +6,9 @@ use std::convert::TryInto;
 
 #[derive(Clone)]
 pub struct WhereClause {
-    pub lower_key: Vec<u8>,
-    pub upper_key: Vec<u8>,
-    pub index_type: IndexType,
+    lower_key: Vec<u8>,
+    upper_key: Vec<u8>,
+    pub(super) index_type: IndexType,
 }
 
 impl WhereClause {
@@ -27,9 +27,22 @@ impl WhereClause {
         WhereClauseIterator::new(&self, cursor)
     }
 
-    pub fn contains(&self, other: &WhereClause) -> bool {
-        self.lower_key <= other.lower_key && self.upper_key >= other.upper_key
+    pub fn is_empty(&self) -> bool {
+        !self.check_below_upper_key(&self.lower_key)
     }
+
+    #[inline]
+    fn check_below_upper_key(&self, mut key: &[u8]) -> bool {
+        let upper_key: &[u8] = &self.upper_key;
+        if upper_key.len() < key.len() {
+            key = &key[0..self.upper_key.len()]
+        }
+        upper_key >= key
+    }
+
+    /*pub(super) fn merge(&self, other: &WhereClause) -> Option<WhereClause> {
+        unimplemented!()
+    }*/
 
     pub fn add_lower_int(&mut self, mut value: i32, include: bool) {
         if !include {
@@ -141,7 +154,7 @@ pub struct WhereClauseIterator<'a, 'txn> {
 }
 
 impl<'a, 'txn> WhereClauseIterator<'a, 'txn> {
-    pub fn new(where_clause: &'a WhereClause, cursor: &'a mut Cursor<'txn>) -> Result<Self> {
+    fn new(where_clause: &'a WhereClause, cursor: &'a mut Cursor<'txn>) -> Result<Self> {
         cursor.move_to_key_greater_than_or_equal_to(&where_clause.lower_key)?;
         Ok(WhereClauseIterator {
             where_clause,
@@ -157,7 +170,7 @@ impl<'a, 'txn> Iterator for WhereClauseIterator<'a, 'txn> {
         let next = self.iter.next();
         match next? {
             Ok((key, val)) => {
-                if key <= &self.where_clause.upper_key {
+                if self.where_clause.check_below_upper_key(&key) {
                     Some(Ok((key, val)))
                 } else {
                     None
@@ -165,5 +178,66 @@ impl<'a, 'txn> Iterator for WhereClauseIterator<'a, 'txn> {
             }
             Err(e) => Some(Err(e)),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::collection::IsarCollection;
+    use crate::{col, isar};
+    use itertools::Itertools;
+
+    #[macro_export]
+    macro_rules! exec_wc (
+        ($txn:ident, $col:ident, $wc:ident, $res:ident) => {
+            let mut cursor = $col.debug_get_index(0).debug_get_db().cursor(&$txn).unwrap();
+            let $res = $wc.iter(&mut cursor)
+                .unwrap()
+                .map(Result::unwrap)
+                .map(|(_, v)| v)
+                .collect_vec();
+        };
+    );
+
+    fn get_str_obj(col: &IsarCollection, str: &str) -> Vec<u8> {
+        let mut ob = col.get_object_builder();
+        ob.write_string(Some(str));
+        ob.to_bytes().to_vec()
+    }
+
+    #[test]
+    fn test_iter() {
+        isar!(isar, col => col!(field => String index field));
+
+        let txn = isar.begin_txn(true).unwrap();
+        let oid1 = col.put(&txn, None, &get_str_obj(&col, "aaaa")).unwrap();
+        let oid2 = col.put(&txn, None, &get_str_obj(&col, "aabb")).unwrap();
+        let oid3 = col.put(&txn, None, &get_str_obj(&col, "bbaa")).unwrap();
+        let oid4 = col.put(&txn, None, &get_str_obj(&col, "bbbb")).unwrap();
+
+        let all_oids = &[
+            oid1.as_bytes(),
+            oid2.as_bytes(),
+            oid3.as_bytes(),
+            oid4.as_bytes(),
+        ];
+
+        let mut wc = col.create_where_clause(0);
+        exec_wc!(txn, col, wc, oids);
+        assert_eq!(&oids, all_oids);
+
+        wc.add_lower_string_value(Some("aa"), true);
+        exec_wc!(txn, col, wc, oids);
+        assert_eq!(&oids, all_oids);
+
+        let mut wc = col.create_where_clause(0);
+        wc.add_lower_string_value(Some("aa"), false);
+        exec_wc!(txn, col, wc, oids);
+        assert_eq!(&oids, &[oid3.as_bytes(), oid4.as_bytes()]);
+
+        wc.add_upper_string_value(Some("bba"), true);
+        exec_wc!(txn, col, wc, oids);
+        assert_eq!(&oids, &[oid3.as_bytes()]);
     }
 }

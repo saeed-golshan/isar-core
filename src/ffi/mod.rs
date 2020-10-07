@@ -5,6 +5,7 @@ mod isar_try;
 
 pub mod crud;
 pub mod instance;
-pub mod query_where;
+pub mod query;
 pub mod schema;
 pub mod txn;
+pub mod where_clause;

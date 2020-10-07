@@ -31,3 +31,14 @@ pub fn to_c_str(str: &str) -> Result<CString> {
 pub fn seconds_since_epoch() -> u64 {
     OffsetDateTime::now_utc().timestamp() as u64
 }
+
+#[macro_export]
+macro_rules! option (
+    ($option:expr, $value:expr) => {
+        if $option {
+            Some($value)
+        } else {
+            None
+        }
+    };
+);

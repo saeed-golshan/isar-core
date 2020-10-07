@@ -1,3 +1,5 @@
+#![allow(clippy::missing_safety_doc)]
+
 use core::slice;
 use lmdb_sys as ffi;
 use std::ffi::c_void;
