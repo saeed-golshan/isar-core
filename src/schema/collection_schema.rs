@@ -6,11 +6,11 @@ use crate::object::object_info::ObjectInfo;
 use crate::object::property::{DataType, Property};
 use crate::schema::index_schema::IndexSchema;
 use crate::schema::property_schema::PropertySchema;
+use hashbrown::HashSet;
 use itertools::Itertools;
 use rand::random;
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
-use std::collections::HashSet;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct CollectionSchema {

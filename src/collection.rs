@@ -1,4 +1,4 @@
-use crate::error::Result;
+use crate::error::{illegal_arg, Result};
 use crate::index::{Index, IndexType};
 use crate::lmdb::db::Db;
 use crate::lmdb::txn::Txn;
@@ -10,7 +10,7 @@ use crate::query::where_clause::WhereClause;
 use rand::random;
 
 #[cfg(test)]
-use {crate::utils::debug::dump_db, std::collections::HashMap};
+use {crate::utils::debug::dump_db, hashbrown::HashMap};
 
 pub struct IsarCollection {
     id: u16,
@@ -78,11 +78,15 @@ impl IsarCollection {
         Ok(())
     }
 
-    pub fn create_where_clause(&self, index_index: usize) -> WhereClause {
-        if let Some(index) = self.indexes.get(index_index) {
-            index.create_where_clause()
+    pub fn create_where_clause(&self, index_index: Option<usize>) -> Result<WhereClause> {
+        if let Some(index_index) = index_index {
+            if let Some(index) = self.indexes.get(index_index) {
+                Ok(index.create_where_clause())
+            } else {
+                illegal_arg("Unknown index")
+            }
         } else {
-            WhereClause::new(&self.id.to_le_bytes(), IndexType::Primary)
+            Ok(WhereClause::new(&self.id.to_le_bytes(), IndexType::Primary))
         }
     }
 
@@ -110,11 +114,15 @@ impl IsarCollection {
     pub fn debug_get_index(&self, index: usize) -> &Index {
         self.indexes.get(index).unwrap()
     }
+
+    #[cfg(test)]
+    pub fn debug_get_db(&self) -> Db {
+        self.db
+    }
 }
 
 #[cfg(test)]
-
-mod test {
+mod tests {
     use crate::{col, isar, map};
 
     #[test]

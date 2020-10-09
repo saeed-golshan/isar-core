@@ -61,21 +61,21 @@ impl From<LmdbError> for IsarError {
     }
 }
 
-pub fn illegal_state(msg: &str) -> Result<()> {
+pub fn illegal_state<T>(msg: &str) -> Result<T> {
     Err(IsarError::IllegalState {
         source: None,
         message: msg.to_string(),
     })
 }
 
-pub fn illegal_arg(msg: &str) -> Result<()> {
+pub fn illegal_arg<T>(msg: &str) -> Result<T> {
     Err(IsarError::IllegalArgument {
         source: None,
         message: msg.to_string(),
     })
 }
 
-pub fn corrupted(msg: &str) -> Result<()> {
+pub fn corrupted<T>(msg: &str) -> Result<T> {
     Err(IsarError::DbCorrupted {
         source: None,
         message: msg.to_string(),

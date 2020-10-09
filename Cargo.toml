@@ -19,6 +19,7 @@ serde_repr = "0.1.6"
 thiserror = "1.0.20"
 time = "0.2.22"
 enum-ordinalize = "3.1.8"
+hashbrown = "0.9"
 
 
 [dev-dependencies]
@@ -29,7 +30,6 @@ tempfile = "3"
 crate-type=["cdylib", "rlib"]
 
 [profile.release]
-opt-level = 'z'
 lto = true
 codegen-units = 1
 strip = "debuginfo"

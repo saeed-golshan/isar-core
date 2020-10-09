@@ -149,7 +149,7 @@ macro_rules! lmdb_try_with_cleanup {
 }*/
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
 
     #[test]

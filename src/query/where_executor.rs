@@ -3,7 +3,7 @@ use crate::index::IndexType;
 use crate::lmdb::cursor::Cursor;
 use crate::option;
 use crate::query::where_clause::WhereClause;
-use std::collections::HashSet;
+use hashbrown::HashSet;
 
 pub(super) struct WhereExecutor<'a, 'txn> {
     where_clauses: &'a [WhereClause],
@@ -77,12 +77,13 @@ impl<'a, 'txn> WhereExecutor<'a, 'txn> {
         let iter = where_clause.iter(cursor)?;
         for entry in iter {
             let (key, val) = entry?;
+            let oid = &key[2..14];
             if let Some(result_ids) = result_ids {
-                if !result_ids.insert(key) {
+                if !result_ids.insert(oid) {
                     continue;
                 }
             }
-            if !callback(key, val) {
+            if !callback(oid, val) {
                 return Ok(false);
             }
         }
@@ -102,16 +103,16 @@ impl<'a, 'txn> WhereExecutor<'a, 'txn> {
         };
         let iter = where_clause.iter(cursor)?;
         for index_entry in iter {
-            let (_, entry_id) = index_entry?;
+            let (_, oid) = index_entry?;
             if let Some(result_ids) = result_ids {
-                if !result_ids.insert(entry_id) {
+                if !result_ids.insert(oid) {
                     continue;
                 }
             }
 
-            let entry = self.primary_cursor.move_to(entry_id)?;
-            if let Some((key, val)) = entry {
-                if !callback(key, val) {
+            let entry = self.primary_cursor.move_to(oid)?;
+            if let Some((_, val)) = entry {
+                if !callback(oid, val) {
                     return Ok(false);
                 }
             } else {
@@ -119,5 +120,64 @@ impl<'a, 'txn> WhereExecutor<'a, 'txn> {
             }
         }
         Ok(true)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::object::object_builder::ObjectBuilder;
+    use crate::object::object_info::ObjectInfo;
+    use crate::object::property::{DataType, Property};
+    use crate::query::where_executor::WhereExecutor;
+    use crate::*;
+    use hashbrown::HashMap;
+    use crate::utils::debug::fill_db;
+
+    fn run_executer<'a>(executer: &'a mut WhereExecutor) -> HashMap<&'a [u8], &'a [u8]> {
+        let mut entries = HashMap::new();
+        executer
+            .run(|key, val| {
+                if entries.insert(key, val).is_some() {
+                    panic!("Duplicate entry");
+                }
+                true
+            })
+            .unwrap();
+        entries
+    }
+
+    fn build_value(field1: i32, field2: &str) -> Vec<u8> {
+        let properties = vec![
+            Property::new("f1", DataType::Int, 0),
+            Property::new("f2", DataType::String, 4),
+        ];
+        let info = ObjectInfo::new(properties);
+        let mut builder = ObjectBuilder::new(&info);
+        builder.write_int(field1);
+        builder.write_string(Some(field2));
+        builder.to_bytes().to_vec()
+    }
+
+    #[test]
+    fn test_run_single_where_clause() {
+        isar!(isar, col => col!(f1 => Int, f2 => String));
+
+        let txn = isar.begin_txn(true).unwrap();
+
+        let data = vec![(None, build_value(1, "aaa")),(None, build_value(1, "aaa")),(None, build_value(1, "aaa")),(None, build_value(1, "aaa"))];
+        fill_db(col,&txn,data)
+        let oid1 = col.put(&txn, None, &object1).unwrap();
+
+        let object2 = build_value(1, "aaa");
+        let oid2 = col.put(&txn, None, &object2).unwrap();
+
+        let object3 =
+        let oid3 = col.put(&txn, None, &build_value(1, "abb")).unwrap();
+        let oid4 = col.put(&txn, None, &build_value(1, "abb")).unwrap();
+
+        let primary_wc = col.create_where_clause(None).unwrap();
+        let primary_cursor = col.debug_get_db().cursor(&txn).unwrap();
+        let mut executer = WhereExecutor::new(primary_cursor, None, None, &vec![primary_wc], false);
+        assert_eq!(run_executer(&mut executer), map!())
     }
 }

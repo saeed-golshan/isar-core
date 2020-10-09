@@ -8,7 +8,7 @@ use std::mem::transmute;
 use wyhash::wyhash;
 
 #[cfg(test)]
-use {crate::utils::debug::dump_db, std::collections::HashMap};
+use {crate::utils::debug::dump_db, hashbrown::HashMap};
 
 pub const MAX_STRING_INDEX_SIZE: usize = 1500;
 

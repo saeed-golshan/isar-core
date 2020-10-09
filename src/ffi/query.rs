@@ -1,4 +1,5 @@
 use crate::instance::IsarInstance;
+use crate::lmdb::txn::Txn;
 use crate::query::query::Query;
 use crate::query::query_builder::QueryBuilder;
 use crate::query::where_clause::WhereClause;
@@ -22,4 +23,9 @@ pub unsafe extern "C" fn isar_qb_add_where_clause(
 pub unsafe extern "C" fn isar_qb_build(builder: *mut QueryBuilder) -> *mut Query {
     let query = Box::from_raw(builder).build();
     Box::into_raw(Box::new(query))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn isar_q_run(query: Option<&Query>, txn: Option<&Txn>) {
+    println!("{:?}", query.unwrap().get_all(&txn.unwrap()).unwrap());
 }

@@ -151,7 +151,7 @@ impl<'a> ObjectBuilder<'a> {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use crate::object::object_builder::ObjectBuilder;
     use crate::object::object_info::ObjectInfo;
     use crate::object::property::{DataType, Property};

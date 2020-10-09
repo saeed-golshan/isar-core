@@ -1,6 +1,7 @@
 use crate::error::Result;
 use crate::lmdb::db::Db;
 use crate::lmdb::txn::Txn;
+use crate::map_option;
 use crate::query::where_clause::WhereClause;
 use crate::query::where_executor::WhereExecutor;
 
@@ -35,16 +36,8 @@ impl Query {
         F: FnMut(&'txn [u8], &'txn [u8]) -> bool,
     {
         let primary_cursor = self.primary_db.cursor(&txn)?;
-        let secondary_cursor = if let Some(db) = self.secondary_db {
-            Some(db.cursor(&txn)?)
-        } else {
-            None
-        };
-        let secondary_dup_cursor = if let Some(db) = self.secondary_dup_db {
-            Some(db.cursor(&txn)?)
-        } else {
-            None
-        };
+        let secondary_cursor = map_option!(self.secondary_db, db, db.cursor(&txn)?);
+        let secondary_dup_cursor = map_option!(self.secondary_dup_db, db, db.cursor(&txn)?);
         let mut executor = WhereExecutor::new(
             primary_cursor,
             secondary_cursor,

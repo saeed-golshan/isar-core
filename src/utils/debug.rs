@@ -1,15 +1,17 @@
 #![cfg(test)]
 
+use crate::collection::IsarCollection;
 use crate::lmdb::db::Db;
 use crate::lmdb::txn::Txn;
-use std::collections::HashMap;
+use crate::object::object_id::ObjectId;
+use hashbrown::HashMap;
 
 #[macro_export]
 macro_rules! map (
     ($($key:expr => $value:expr),+) => {
         #[allow(clippy::useless_vec)]
         {
-            let mut m = ::std::collections::HashMap::new();
+            let mut m = ::hashbrown::HashMap::new();
             $(m.insert($key.to_vec(), $value.to_vec());)+
             m
         }
@@ -54,6 +56,19 @@ macro_rules! col (
         }
     };
 );
+
+pub fn fill_db<'a>(
+    col: &IsarCollection,
+    txn: &'a Txn,
+    data: &[(Option<ObjectId>, &'a [u8])],
+) -> HashMap<&'a [u8], &'a [u8]> {
+    let mut result = HashMap::<&[u8], &[u8]>::new();
+    for (oid, object) in data {
+        let oid = col.put(&txn, *oid, object).unwrap();
+        result.insert(oid.as_bytes(), object);
+    }
+    result
+}
 
 pub fn dump_db(db: Db, txn: &Txn, prefix: Option<&[u8]>) -> HashMap<Vec<u8>, Vec<u8>> {
     let mut map = HashMap::new();

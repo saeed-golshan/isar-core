@@ -1,3 +1,5 @@
+#![allow(clippy::missing_safety_doc)]
+
 #[macro_use]
 pub mod debug;
 
@@ -7,9 +9,7 @@ use std::os::raw::c_char;
 use time::OffsetDateTime;
 
 pub unsafe fn from_c_str<'a>(str: *const c_char) -> Result<&'a str> {
-    let result = CStr::from_ptr(str).to_str();
-
-    match result {
+    match CStr::from_ptr(str).to_str() {
         Ok(str) => Ok(str),
         Err(e) => Err(IsarError::IllegalArgument {
             source: Some(Box::new(e)),
@@ -37,6 +37,17 @@ macro_rules! option (
     ($option:expr, $value:expr) => {
         if $option {
             Some($value)
+        } else {
+            None
+        }
+    };
+);
+
+#[macro_export]
+macro_rules! map_option (
+    ($option:expr, $var:ident, $map:expr) => {
+        if let Some($var) = $option {
+            Some($map)
         } else {
             None
         }

@@ -17,6 +17,15 @@ impl ObjectId {
         }
     }
 
+    /*fn from_bytes(bytes: &[u8]) -> &ObjectId {
+        unsafe {
+            ::std::slice::from_raw_parts(
+                (bytes as *const Self) as *const u8,
+                ::std::mem::size_of::<Self>(),
+            )
+        };
+    }*/
+
     pub fn get_time(&self) -> u32 {
         self.time
     }

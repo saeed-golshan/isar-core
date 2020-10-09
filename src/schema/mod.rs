@@ -1,13 +1,13 @@
 pub mod collection_schema;
-pub mod property_schema;
 pub mod index_schema;
+pub mod property_schema;
 
 use crate::collection::IsarCollection;
 use crate::data_dbs::DataDbs;
 use crate::error::{illegal_arg, Result};
 use crate::schema::collection_schema::CollectionSchema;
+use hashbrown::HashSet;
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Schema {
