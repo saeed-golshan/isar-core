@@ -128,36 +128,28 @@ impl Index {
     #[allow(clippy::transmute_float_to_int)]
     pub fn get_float_key(value: f32) -> Vec<u8> {
         if !value.is_nan() {
-            let mut bits = unsafe { std::mem::transmute::<f32, u32>(value) };
-            if value == 0.0 {
-                bits = 0;
-            }
-            if value.is_sign_positive() {
-                bits ^= 0x80000000;
-            } else if value.is_sign_negative() {
-                bits ^= 0xFFFFFFFF;
-            }
-            u32::to_be_bytes(bits + 1).to_vec()
+            let bits = if value.is_sign_positive() {
+                value.to_bits() + 2u32.pow(31)
+            } else {
+                !(-value).to_bits() - 2u32.pow(31)
+            };
+            u32::to_be_bytes(bits).to_vec()
         } else {
-            vec![0]
+            vec![0; 4]
         }
     }
 
     #[allow(clippy::transmute_float_to_int)]
     pub fn get_double_key(value: f64) -> Vec<u8> {
         if !value.is_nan() {
-            let mut bits = unsafe { std::mem::transmute::<f64, u64>(value) };
-            if value == 0.0 {
-                bits = 0;
-            }
-            if value.is_sign_positive() {
-                bits ^= 0x8000000000000000;
-            } else if value.is_sign_negative() {
-                bits ^= 0xFFFFFFFFFFFFFFFF;
-            }
-            u64::to_be_bytes(bits + 1).to_vec()
+            let bits = if value.is_sign_positive() {
+                value.to_bits() + 2u64.pow(63)
+            } else {
+                !(-value).to_bits() - 2u64.pow(63)
+            };
+            u64::to_be_bytes(bits).to_vec()
         } else {
-            vec![0]
+            vec![0; 8]
         }
     }
 
@@ -218,6 +210,7 @@ impl Index {
 mod tests {
     use super::*;
     use crate::{col, isar, map};
+    use float_next_after::NextAfter;
 
     #[test]
     fn test_create_for_object() {
@@ -311,10 +304,50 @@ mod tests {
     }
 
     #[test]
-    fn test_get_float_key() {}
+    fn test_get_float_key() {
+        let pairs = vec![
+            (f32::NAN, vec![0, 0, 0, 0]),
+            (f32::NEG_INFINITY, vec![0, 127, 255, 255]),
+            (f32::MIN, vec![0, 128, 0, 0]),
+            (f32::MIN.next_after(f32::MAX), vec![0, 128, 0, 1]),
+            ((-0.0).next_after(f32::MIN), vec![127, 255, 255, 254]),
+            (-0.0, vec![127, 255, 255, 255]),
+            (0.0, vec![128, 0, 0, 0]),
+            (0.0.next_after(f32::MAX), vec![128, 0, 0, 1]),
+            (f32::MAX.next_after(f32::MIN), vec![255, 127, 255, 254]),
+            (f32::MAX, vec![255, 127, 255, 255]),
+            (f32::INFINITY, vec![255, 128, 0, 0]),
+        ];
+        for (val, bytes) in pairs {
+            assert_eq!(Index::get_float_key(val), bytes);
+        }
+    }
 
     #[test]
-    fn test_get_double_key() {}
+    fn test_get_double_key() {
+        let pairs = vec![
+            (f64::NAN, vec![0, 0, 0, 0, 0, 0, 0, 0]),
+            (f64::NEG_INFINITY, vec![0, 15, 255, 255, 255, 255, 255, 255]),
+            (f64::MIN, vec![0, 16, 0, 0, 0, 0, 0, 0]),
+            (f64::MIN.next_after(f64::MAX), vec![0, 16, 0, 0, 0, 0, 0, 1]),
+            (
+                (-0.0).next_after(f64::MIN),
+                vec![127, 255, 255, 255, 255, 255, 255, 254],
+            ),
+            (-0.0, vec![127, 255, 255, 255, 255, 255, 255, 255]),
+            (0.0, vec![128, 0, 0, 0, 0, 0, 0, 0]),
+            (0.0.next_after(f64::MAX), vec![128, 0, 0, 0, 0, 0, 0, 1]),
+            (
+                f64::MAX.next_after(f64::MIN),
+                vec![255, 239, 255, 255, 255, 255, 255, 254],
+            ),
+            (f64::MAX, vec![255, 239, 255, 255, 255, 255, 255, 255]),
+            (f64::INFINITY, vec![255, 240, 0, 0, 0, 0, 0, 0]),
+        ];
+        for (val, bytes) in pairs {
+            assert_eq!(Index::get_double_key(val), bytes);
+        }
+    }
 
     #[test]
     fn test_get_bool_index_key() {

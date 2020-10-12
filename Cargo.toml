@@ -25,6 +25,7 @@ hashbrown = "0.9"
 [dev-dependencies]
 cfg-if = "0.1.10"
 tempfile = "3"
+float_next_after = "0.1.5"
 
 [lib]
 crate-type=["cdylib", "rlib"]
