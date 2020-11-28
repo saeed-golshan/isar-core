@@ -7,7 +7,7 @@ authors = ["Simon Leier <simonleier@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-rand = "0.7.3"
+rand = { version = "0.7.3", features = [ "small_rng" ], default_features = false }
 itertools = "0.9.0"
 enum_dispatch = "0.3.3"
 lmdb-sys = { path = "./lmdb-sys" }

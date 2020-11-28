@@ -119,8 +119,8 @@ impl<'txn> Cursor<'txn> {
         CursorIterator::new(self, ffi::MDB_GET_CURRENT, ffi::MDB_NEXT)
     }
 
-    pub fn iter_dup<'a>(&'a mut self) -> CursorIterator<'a, 'txn> {
-        CursorIterator::new(self, ffi::MDB_GET_CURRENT, ffi::MDB_NEXT_DUP)
+    pub fn iter_no_dup<'a>(&'a mut self) -> CursorIterator<'a, 'txn> {
+        CursorIterator::new(self, ffi::MDB_GET_CURRENT, ffi::MDB_NODUPDATA)
     }
 
     pub fn iter_from_first<'a>(&'a mut self) -> CursorIterator<'a, 'txn> {

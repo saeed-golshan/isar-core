@@ -27,5 +27,12 @@ pub unsafe extern "C" fn isar_qb_build(builder: *mut QueryBuilder) -> *mut Query
 
 #[no_mangle]
 pub unsafe extern "C" fn isar_q_run(query: Option<&Query>, txn: Option<&Txn>) {
-    println!("{:?}", query.unwrap().get_all(&txn.unwrap()).unwrap());
+    /*let objects = vec![];
+    query
+        .unwrap()
+        .find_all(&txn.unwrap(), |key, val| {
+            //objects.push(RawObject::new())
+            true
+        })
+        .unwrap();*/
 }

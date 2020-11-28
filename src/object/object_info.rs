@@ -1,9 +1,9 @@
 use crate::object::property::Property;
 
 pub(crate) struct ObjectInfo {
-    pub(super) properties: Vec<Property>,
-    pub(super) static_size: usize,
-    pub(super) first_dynamic_property_index: Option<usize>,
+    pub properties: Vec<Property>,
+    pub static_size: usize,
+    pub first_dynamic_property_index: Option<usize>,
 }
 
 impl ObjectInfo {
@@ -33,11 +33,6 @@ impl ObjectInfo {
             .next()
     }
 
-    #[cfg(test)]
-    pub fn debug_get_property(&self, name: &str) -> &Property {
-        self.properties.iter().find(|p| p.name == name).unwrap()
-    }
-
     /*pub fn verify_object(&self, object: &[u8]) -> bool {
         if let Some(first_dynamic_index) = self.first_dynamic_property_index {
             if object.len() < self.static_size {
@@ -65,20 +60,21 @@ impl ObjectInfo {
 }
 #[cfg(test)]
 mod tests {
+    use crate::object::data_type::DataType;
     use crate::object::object_info::ObjectInfo;
-    use crate::object::property::{DataType, Property};
+    use crate::object::property::Property;
 
     #[test]
     fn test_calculate_static_size() {
         let properties1 = vec![
-            Property::new("", DataType::Bool, 0),
-            Property::new("", DataType::Int, 1),
+            Property::new(DataType::Bool, 0),
+            Property::new(DataType::Int, 1),
         ];
         let properties2 = vec![
-            Property::new("", DataType::Bool, 0),
-            Property::new("", DataType::String, 1),
-            Property::new("", DataType::Bytes, 9),
-            Property::new("", DataType::Double, 9),
+            Property::new(DataType::Bool, 0),
+            Property::new(DataType::String, 1),
+            Property::new(DataType::Bytes, 9),
+            Property::new(DataType::Double, 9),
         ];
 
         assert_eq!(ObjectInfo::calculate_static_size(&properties1), 9);
@@ -88,14 +84,14 @@ mod tests {
     #[test]
     fn test_find_first_dynamic_property_index() {
         let static_properties = vec![
-            Property::new("", DataType::Bool, 0),
-            Property::new("", DataType::Int, 1),
+            Property::new(DataType::Bool, 0),
+            Property::new(DataType::Int, 1),
         ];
         let mixed_properties = vec![
-            Property::new("", DataType::Bool, 0),
-            Property::new("", DataType::String, 1),
+            Property::new(DataType::Bool, 0),
+            Property::new(DataType::String, 1),
         ];
-        let dynamic_properties = vec![Property::new("", DataType::String, 0)];
+        let dynamic_properties = vec![Property::new(DataType::String, 0)];
 
         assert_eq!(
             ObjectInfo::find_first_dynamic_property_index(&static_properties),

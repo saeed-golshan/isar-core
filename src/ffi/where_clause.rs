@@ -1,15 +1,66 @@
 use crate::collection::IsarCollection;
+use crate::error::illegal_arg;
 use crate::query::where_clause::WhereClause;
 use crate::utils::from_c_str;
 use std::os::raw::c_char;
 
 #[no_mangle]
-pub extern "C" fn isar_wc_create(
+pub unsafe extern "C" fn isar_wc_create(
     collection: Option<&IsarCollection>,
-    index: u32,
-) -> *mut WhereClause {
-    let where_clause = collection.unwrap().create_where_clause(index as usize);
-    Box::into_raw(Box::new(where_clause))
+    wc: *mut *const WhereClause,
+    primary: bool,
+    index_index: u32,
+) -> u8 {
+    let index = if primary {
+        None
+    } else {
+        Some(index_index as usize)
+    };
+    isar_try! {
+        let where_clause = collection.unwrap().create_where_clause(index);
+        if let Some(where_clause) = where_clause {
+            let ptr = Box::into_raw(Box::new(where_clause));
+            wc.write(ptr);
+        } else {
+            illegal_arg("Unknown index.")?;
+        };
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn isar_wc_add_lower_oid(
+    where_clause: Option<&mut WhereClause>,
+    time: *const u32,
+    rand_counter: *const u64,
+    include: bool,
+) {
+    let time = if time.is_null() { None } else { Some(*time) };
+    let rand_counter = if rand_counter.is_null() {
+        None
+    } else {
+        Some(*rand_counter)
+    };
+    where_clause
+        .unwrap()
+        .add_lower_oid(time, rand_counter, include);
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn isar_wc_add_upper_oid(
+    where_clause: Option<&mut WhereClause>,
+    time: *const u32,
+    rand_counter: *const u64,
+    include: bool,
+) {
+    let time = if time.is_null() { None } else { Some(*time) };
+    let rand_counter = if rand_counter.is_null() {
+        None
+    } else {
+        Some(*rand_counter)
+    };
+    where_clause
+        .unwrap()
+        .add_upper_oid(time, rand_counter, include);
 }
 
 #[no_mangle]

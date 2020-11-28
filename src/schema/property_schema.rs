@@ -1,4 +1,4 @@
-use crate::object::property::DataType;
+use crate::object::data_type::DataType;
 use serde::{Deserialize, Serialize};
 
 #[derive(PartialEq, Serialize, Deserialize, Clone)]

@@ -1,4 +1,4 @@
-use crate::error::{illegal_arg, Result};
+use crate::error::Result;
 use crate::index::{Index, IndexType};
 use crate::lmdb::db::Db;
 use crate::lmdb::txn::Txn;
@@ -9,6 +9,7 @@ use crate::object::object_info::ObjectInfo;
 use crate::query::where_clause::WhereClause;
 use rand::random;
 
+use crate::object::property::Property;
 #[cfg(test)]
 use {crate::utils::debug::dump_db, hashbrown::HashMap};
 
@@ -78,16 +79,18 @@ impl IsarCollection {
         Ok(())
     }
 
-    pub fn create_where_clause(&self, index_index: Option<usize>) -> Result<WhereClause> {
+    pub fn create_where_clause(&self, index_index: Option<usize>) -> Option<WhereClause> {
         if let Some(index_index) = index_index {
-            if let Some(index) = self.indexes.get(index_index) {
-                Ok(index.create_where_clause())
-            } else {
-                illegal_arg("Unknown index")
-            }
+            self.indexes
+                .get(index_index)
+                .map(|i| i.create_where_clause())
         } else {
-            Ok(WhereClause::new(&self.id.to_le_bytes(), IndexType::Primary))
+            Some(WhereClause::new(&self.id.to_le_bytes(), IndexType::Primary))
         }
+    }
+
+    pub fn get_property_by_index(&self, property_index: usize) -> Option<Property> {
+        self.object_info.properties.get(property_index).copied()
     }
 
     fn delete_from_indexes(&self, txn: &Txn, oid: ObjectId) -> Result<bool> {

@@ -125,19 +125,21 @@ impl<'a, 'txn> WhereExecutor<'a, 'txn> {
 
 #[cfg(test)]
 mod tests {
+    use crate::object::data_type::DataType;
     use crate::object::object_builder::ObjectBuilder;
+    use crate::object::object_id::ObjectId;
     use crate::object::object_info::ObjectInfo;
-    use crate::object::property::{DataType, Property};
+    use crate::object::property::Property;
     use crate::query::where_executor::WhereExecutor;
+    use crate::utils::debug::fill_db;
     use crate::*;
     use hashbrown::HashMap;
-    use crate::utils::debug::fill_db;
 
-    fn run_executer<'a>(executer: &'a mut WhereExecutor) -> HashMap<&'a [u8], &'a [u8]> {
+    fn run_executer(executer: &mut WhereExecutor) -> HashMap<Vec<u8>, Vec<u8>> {
         let mut entries = HashMap::new();
         executer
             .run(|key, val| {
-                if entries.insert(key, val).is_some() {
+                if entries.insert(key.to_vec(), val.to_vec()).is_some() {
                     panic!("Duplicate entry");
                 }
                 true
@@ -148,8 +150,8 @@ mod tests {
 
     fn build_value(field1: i32, field2: &str) -> Vec<u8> {
         let properties = vec![
-            Property::new("f1", DataType::Int, 0),
-            Property::new("f2", DataType::String, 4),
+            Property::new(DataType::Int, 0),
+            Property::new(DataType::String, 4),
         ];
         let info = ObjectInfo::new(properties);
         let mut builder = ObjectBuilder::new(&info);
@@ -164,20 +166,23 @@ mod tests {
 
         let txn = isar.begin_txn(true).unwrap();
 
-        let data = vec![(None, build_value(1, "aaa")),(None, build_value(1, "aaa")),(None, build_value(1, "aaa")),(None, build_value(1, "aaa"))];
-        fill_db(col,&txn,data)
-        let oid1 = col.put(&txn, None, &object1).unwrap();
+        let data = vec![
+            (Some(ObjectId::new(1, 5)), build_value(1, "aaa")),
+            (Some(ObjectId::new(2, 5)), build_value(1, "aaa")),
+            (Some(ObjectId::new(3, 5)), build_value(1, "abb")),
+            (Some(ObjectId::new(4, 5)), build_value(1, "abb")),
+        ];
+        let data = fill_db(col, &txn, &data);
 
-        let object2 = build_value(1, "aaa");
-        let oid2 = col.put(&txn, None, &object2).unwrap();
-
-        let object3 =
-        let oid3 = col.put(&txn, None, &build_value(1, "abb")).unwrap();
-        let oid4 = col.put(&txn, None, &build_value(1, "abb")).unwrap();
-
-        let primary_wc = col.create_where_clause(None).unwrap();
+        let primary_wc = vec![col.create_where_clause(None).unwrap()];
         let primary_cursor = col.debug_get_db().cursor(&txn).unwrap();
-        let mut executer = WhereExecutor::new(primary_cursor, None, None, &vec![primary_wc], false);
-        assert_eq!(run_executer(&mut executer), map!())
+        let mut executer = WhereExecutor::new(primary_cursor, None, None, &primary_wc, false);
+        assert_eq!(run_executer(&mut executer), data);
+
+        let mut primary_wc = vec![col.create_where_clause(None).unwrap()];
+        primary_wc[0].add_lower_oid(Some(2), None, true);
+        let primary_cursor = col.debug_get_db().cursor(&txn).unwrap();
+        let mut executer = WhereExecutor::new(primary_cursor, None, None, &primary_wc, false);
+        assert_eq!(run_executer(&mut executer), data);
     }
 }

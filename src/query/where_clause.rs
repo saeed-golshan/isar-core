@@ -2,6 +2,7 @@ use crate::error::Result;
 use crate::index::{Index, IndexType};
 use crate::lmdb::cursor::{Cursor, CursorIterator};
 use crate::lmdb::KeyVal;
+use crate::object::object_id::ObjectId;
 use std::convert::TryInto;
 
 #[derive(Clone)]
@@ -43,6 +44,42 @@ impl WhereClause {
     /*pub(super) fn merge(&self, other: &WhereClause) -> Option<WhereClause> {
         unimplemented!()
     }*/
+
+    pub fn add_lower_oid(&mut self, time: Option<u32>, rand_counter: Option<u64>, include: bool) {
+        let time = if let Some(time) = time { time } else { 0 };
+        let rand_counter = if let Some(rand_counter) = rand_counter {
+            rand_counter
+        } else {
+            0
+        };
+        let oid = ObjectId::new(time, rand_counter);
+        let mut bytes = oid.as_bytes().to_vec();
+        if !include {
+            let oid = u128::from_be_bytes(bytes.try_into().unwrap());
+            bytes = (oid + 1).to_be_bytes().to_vec();
+        }
+        self.lower_key.extend_from_slice(&bytes);
+    }
+
+    pub fn add_upper_oid(&mut self, time: Option<u32>, rand_counter: Option<u64>, include: bool) {
+        let time = if let Some(time) = time {
+            time
+        } else {
+            u32::MAX
+        };
+        let rand_counter = if let Some(rand_counter) = rand_counter {
+            rand_counter
+        } else {
+            u64::MAX
+        };
+        let oid = ObjectId::new(time, rand_counter);
+        let mut bytes = oid.as_bytes().to_vec();
+        if !include {
+            let oid = u128::from_be_bytes(bytes.try_into().unwrap());
+            bytes = (oid - 1).to_be_bytes().to_vec();
+        }
+        self.upper_key.extend_from_slice(&bytes);
+    }
 
     pub fn add_lower_int(&mut self, mut value: i32, include: bool) {
         if !include {
@@ -223,7 +260,7 @@ mod tests {
             oid4.as_bytes(),
         ];
 
-        let mut wc = col.create_where_clause(0);
+        let mut wc = col.create_where_clause(Some(0)).unwrap();
         exec_wc!(txn, col, wc, oids);
         assert_eq!(&oids, all_oids);
 
@@ -231,7 +268,7 @@ mod tests {
         exec_wc!(txn, col, wc, oids);
         assert_eq!(&oids, all_oids);
 
-        let mut wc = col.create_where_clause(0);
+        let mut wc = col.create_where_clause(Some(0)).unwrap();
         wc.add_lower_string_value(Some("aa"), false);
         exec_wc!(txn, col, wc, oids);
         assert_eq!(&oids, &[oid3.as_bytes(), oid4.as_bytes()]);

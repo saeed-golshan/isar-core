@@ -1,4 +1,4 @@
-use crate::object::property::DataType;
+use crate::object::data_type::DataType;
 use crate::schema::collection_schema::CollectionSchema;
 use crate::schema::Schema;
 use crate::utils::from_c_str;

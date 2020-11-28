@@ -1,7 +1,6 @@
+use crate::error::{illegal_arg, Result};
 use crate::object::property::Property;
 use enum_dispatch::enum_dispatch;
-use itertools::Itertools;
-use unicase::UniCase;
 
 #[derive(Eq, PartialEq)]
 pub enum Case {
@@ -11,22 +10,23 @@ pub enum Case {
 
 #[enum_dispatch]
 pub enum Filter {
-    NullFilter(EqualsNull),
-    IsAnyNull(EqualsNull),
+    IsNull(IsNull),
     IntBetween(IntBetween),
-    IntAnyOf(IntAnyOf),
-    LongBetween(IntBetween),
-    LongAnyOf(IntAnyOf),
-    FloatBetween(DoubleBetween),
-    FloatAnyOf(DoubleAnyOf),
+    LongBetween(LongBetween),
+    FloatBetween(FloatBetween),
     DoubleBetween(DoubleBetween),
-    DoubleAnyOf(DoubleAnyOf),
     //StrAnyOf(StrAnyOf),
     /*StrStartsWith(),
     StrEndsWith(),
     StrContains(),*/
     And(And),
     Or(Or),
+    Not(Not),
+}
+
+#[enum_dispatch(Filter)]
+pub trait Condition {
+    fn evaluate(&self, object: &[u8]) -> bool;
 }
 
 /*impl Filter {
@@ -38,130 +38,52 @@ pub enum Filter {
     }
 }*/
 
-#[enum_dispatch(Filter)]
-trait Condition {
-    fn evaluate(&self, object: &[u8]) -> bool;
-}
-
-pub struct EqualsNull {
+pub struct IsNull {
     property: Property,
-    is_null: bool,
 }
 
-impl Condition for EqualsNull {
+impl Condition for IsNull {
     fn evaluate(&self, object: &[u8]) -> bool {
-        let null = self.property.is_null(object);
-        self.is_null == null
+        self.property.is_null(object)
     }
 }
 
-impl EqualsNull {
-    pub fn filter(property: Property, is_null: bool) -> Filter {
-        Filter::EqualsNull(EqualsNull { property, is_null })
-    }
-}
+#[macro_export]
+macro_rules! primitive_filter (
+    ($between_name:ident, $data_type:ident, $type:ty, $prop_accessor:ident) => {
+        pub struct $between_name {
+            upper: $type,
+            lower: $type,
+            property: Property,
+        }
 
-pub struct NonNullFilter {
-    property: Property,
-    filter: Box<Filter>,
-}
+        impl Condition for $between_name {
+            fn evaluate(&self, object: &[u8]) -> bool {
+                let val = self.property.$prop_accessor(object);
+                self.lower <= val && self.upper >= val
+            }
+        }
 
-impl Condition for NonNullFilter {
-    fn evaluate(&self, object: &[u8]) -> bool {
-        if !self.property.is_null(object) {
-            self.filter.evaluate(object)
-        } else {
-            false
+        impl $between_name {
+            pub fn filter(property: Property, lower: $type, upper: $type) -> Result<Filter> {
+                if property.data_type == crate::object::data_type::DataType::$data_type {
+                    Ok(Filter::$between_name($between_name {
+                        property,
+                        lower,
+                        upper,
+                    }))
+                } else {
+                    illegal_arg("Property does not support this filter.")
+                }
+            }
         }
     }
-}
+);
 
-pub struct IntBetween {
-    upper: i64,
-    lower: i64,
-    property: Property,
-}
-
-impl Condition for IntBetween {
-    fn evaluate(&self, object: &[u8]) -> bool {
-        let int = self.property.get_int(object);
-        self.lower <= int && self.upper >= int
-    }
-}
-
-impl IntBetween {
-    pub fn filter(property: Property, lower: i64, upper: i64) -> Filter {
-        Filter::IntBetween(IntBetween {
-            property,
-            lower,
-            upper,
-        })
-    }
-}
-
-pub struct IntAnyOf {
-    property: Property,
-    values: Vec<i64>,
-}
-
-impl Condition for IntAnyOf {
-    fn evaluate(&self, object: &[u8]) -> bool {
-        let int = self.property.get_int(object);
-        self.values.iter().any(|v| *v == int)
-    }
-}
-
-impl IntAnyOf {
-    pub fn filter(property: Property, values: Vec<i64>) -> Filter {
-        Filter::IntAnyOf(IntAnyOf { property, values })
-    }
-}
-
-pub struct DoubleBetween {
-    upper: f64,
-    lower: f64,
-    property: Property,
-}
-
-impl Condition for DoubleBetween {
-    fn evaluate(&self, object: &[u8]) -> bool {
-        let double = self.property.get_double(object);
-        self.lower <= double && self.upper >= double
-    }
-}
-
-impl DoubleBetween {
-    pub fn filter(property: Property, lower: f64, upper: f64) -> Filter {
-        Filter::DoubleBetween(DoubleBetween {
-            property,
-            lower,
-            upper,
-        })
-    }
-}
-
-pub struct DoubleAnyOf {
-    property: Property,
-    values: Vec<f64>,
-    epsilon: f64,
-}
-
-impl Condition for DoubleAnyOf {
-    fn evaluate(&self, object: &[u8]) -> bool {
-        let int = self.property.get_double(object);
-        self.values.iter().any(|v| (*v - int).abs() < self.epsilon)
-    }
-}
-
-impl DoubleAnyOf {
-    pub fn filter(property: Property, values: Vec<f64>, epsilon: f64) -> Filter {
-        Filter::DoubleAnyOf(DoubleAnyOf {
-            property,
-            values,
-            epsilon,
-        })
-    }
-}
+primitive_filter!(IntBetween, Int, i32, get_int);
+primitive_filter!(LongBetween, Long, i64, get_long);
+primitive_filter!(FloatBetween, Float, f32, get_float);
+primitive_filter!(DoubleBetween, Double, f64, get_double);
 
 pub struct StrAnyOf {
     property: Property,
@@ -264,6 +186,24 @@ pub struct Not {
 
 impl Condition for Not {
     fn evaluate(&self, object: &[u8]) -> bool {
+        self.filter.evaluate(object)
+    }
+}
+
+impl Not {
+    pub fn filter(filter: Filter) -> Filter {
+        Filter::Not(Not {
+            filter: Box::new(filter),
+        })
+    }
+}
+
+/*pub struct Not {
+    filter: Box<Filter>,
+}
+
+impl Condition for Not {
+    fn evaluate(&self, object: &[u8]) -> bool {
         !self.filter.evaluate(object)
     }
 }
@@ -294,3 +234,4 @@ impl LinkFilter {
         })
     }
 }
+*/

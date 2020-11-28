@@ -5,6 +5,7 @@ use crate::lmdb::db::Db;
 use crate::lmdb::txn::Txn;
 use crate::object::object_id::ObjectId;
 use hashbrown::HashMap;
+use std::hash::Hash;
 
 #[macro_export]
 macro_rules! map (
@@ -50,7 +51,7 @@ macro_rules! col (
     ($($name:expr => $type:ident),+ index $($($index:expr),+);*) => {
         {
             let mut collection = crate::schema::collection_schema::CollectionSchema::new(stringify!($($name)+));
-            $(collection.add_property(stringify!($name), crate::object::property::DataType::$type).unwrap();)+
+            $(collection.add_property(stringify!($name), crate::object::data_type::DataType::$type).unwrap();)+
             $(collection.add_index(&[$(stringify!($index)),+], false, false).unwrap();)*
             collection
         }
@@ -60,14 +61,18 @@ macro_rules! col (
 pub fn fill_db<'a>(
     col: &IsarCollection,
     txn: &'a Txn,
-    data: &[(Option<ObjectId>, &'a [u8])],
-) -> HashMap<&'a [u8], &'a [u8]> {
-    let mut result = HashMap::<&[u8], &[u8]>::new();
+    data: &'a [(Option<ObjectId>, Vec<u8>)],
+) -> HashMap<Vec<u8>, Vec<u8>> {
+    let mut result = HashMap::new();
     for (oid, object) in data {
         let oid = col.put(&txn, *oid, object).unwrap();
-        result.insert(oid.as_bytes(), object);
+        result.insert(oid.as_bytes().to_vec(), object.to_vec());
     }
     result
+}
+
+pub fn ref_map<K: Eq + Hash, V>(map: &HashMap<K, V>) -> HashMap<&K, &V> {
+    map.iter().map(|(k, v)| (k, v)).collect()
 }
 
 pub fn dump_db(db: Db, txn: &Txn, prefix: Option<&[u8]>) -> HashMap<Vec<u8>, Vec<u8>> {

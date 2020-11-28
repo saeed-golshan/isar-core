@@ -1,5 +1,6 @@
+use crate::object::data_type::DataType;
 use crate::object::object_info::ObjectInfo;
-use crate::object::property::{DataType, Property};
+use crate::object::property::Property;
 use core::mem;
 use itertools::Itertools;
 use std::slice::from_raw_parts;
@@ -143,18 +144,19 @@ impl<'a> ObjectBuilder<'a> {
 
     fn bool_to_byte(value: Option<bool>) -> u8 {
         match value {
-            None => Property::NULL_BOOL,
             Some(false) => Property::FALSE_BOOL,
             Some(true) => Property::TRUE_BOOL,
+            None => Property::NULL_BOOL,
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use crate::object::object_builder::ObjectBuilder;
     use crate::object::object_info::ObjectInfo;
-    use crate::object::property::{DataType, Property};
+    use crate::object::property::Property;
 
     macro_rules! builder {
         ($var:ident, $($property:expr), *) => {
@@ -165,7 +167,7 @@ mod tests {
 
     #[test]
     pub fn test_write_int() {
-        builder!(b, Property::new("", DataType::Int, 0));
+        builder!(b, Property::new(DataType::Int, 0));
 
         b.write_int(123);
         assert_eq!(b.to_bytes(), 123i64.to_le_bytes())
@@ -174,17 +176,17 @@ mod tests {
     #[test]
     #[should_panic]
     pub fn test_write_int_wrong_type() {
-        builder!(b, Property::new("", DataType::Double, 0));
+        builder!(b, Property::new(DataType::Double, 0));
         b.write_int(123);
     }
 
     #[test]
     pub fn test_write_double() {
-        builder!(b, Property::new("", DataType::Double, 0));
+        builder!(b, Property::new(DataType::Double, 0));
         b.write_double(123.0);
         assert_eq!(b.to_bytes(), 123f64.to_le_bytes());
 
-        builder!(b, Property::new("", DataType::Double, 0));
+        builder!(b, Property::new(DataType::Double, 0));
         b.write_double(f64::NAN);
         assert_eq!(b.to_bytes(), f64::NAN.to_le_bytes());
     }
@@ -192,21 +194,21 @@ mod tests {
     #[test]
     #[should_panic]
     pub fn test_write_double_wrong_type() {
-        builder!(b, Property::new("", DataType::Bool, 0));
+        builder!(b, Property::new(DataType::Bool, 0));
         b.write_double(123.0);
     }
 
     #[test]
     pub fn test_write_bool() {
-        builder!(b, Property::new("", DataType::Bool, 0));
+        builder!(b, Property::new(DataType::Bool, 0));
         b.write_bool(None);
         assert_eq!(b.to_bytes(), &[Property::NULL_BOOL]);
 
-        builder!(b, Property::new("", DataType::Bool, 0));
+        builder!(b, Property::new(DataType::Bool, 0));
         b.write_bool(Some(false));
         assert_eq!(b.to_bytes(), &[Property::FALSE_BOOL]);
 
-        builder!(b, Property::new("", DataType::Bool, 0));
+        builder!(b, Property::new(DataType::Bool, 0));
         b.write_bool(Some(true));
         assert_eq!(b.to_bytes(), &[Property::TRUE_BOOL]);
     }
@@ -214,7 +216,7 @@ mod tests {
     #[test]
     #[should_panic]
     pub fn test_write_bool_wrong_type() {
-        builder!(b, Property::new("", DataType::String, 0));
+        builder!(b, Property::new(DataType::String, 0));
         b.write_bool(Some(true));
     }
 
@@ -222,11 +224,11 @@ mod tests {
     pub fn test_write_multiple_static_types() {
         /*builder!(
             b,
-            Property::new("", DataType::Int, 0),
-            Property::new("", DataType::Int, 8),
-            Property::new("", DataType::Double, 16),
-            Property::new("", DataType::Bool, 24),
-            Property::new("", DataType::Double, 25)
+            Property::new( DataType::Int, 0),
+            Property::new( DataType::Int, 8),
+            Property::new( DataType::Double, 16),
+            Property::new( DataType::Bool, 24),
+            Property::new( DataType::Double, 25)
         );
 
         b.write_int(i64::MAX);

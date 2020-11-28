@@ -4,6 +4,7 @@
 mod isar_try;
 
 pub mod crud;
+pub mod filter;
 pub mod instance;
 pub mod query;
 pub mod schema;

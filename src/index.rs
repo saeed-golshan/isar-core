@@ -2,11 +2,12 @@ use crate::error::Result;
 use crate::lmdb::db::Db;
 use crate::lmdb::txn::Txn;
 use crate::object::object_id::ObjectId;
-use crate::object::property::{DataType, Property};
+use crate::object::property::Property;
 use crate::query::where_clause::WhereClause;
 use std::mem::transmute;
 use wyhash::wyhash;
 
+use crate::object::data_type::DataType;
 #[cfg(test)]
 use {crate::utils::debug::dump_db, hashbrown::HashMap};
 

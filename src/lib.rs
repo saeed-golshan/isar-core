@@ -10,7 +10,7 @@ pub mod utils;
 //pub mod collection_manager;
 pub mod data_dbs;
 pub mod ffi;
-mod index;
+pub mod index;
 pub mod instance;
 //mod link;
 pub mod lmdb;

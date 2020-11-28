@@ -10,24 +10,20 @@ pub struct ObjectId {
 impl ObjectId {
     pub fn new(time: u32, rand_counter: u64) -> Self {
         ObjectId {
+            prefix: 0,
             time: time.to_be(),
             rand_counter,
-            prefix: 0,
             _padding: 0,
         }
     }
 
-    /*fn from_bytes(bytes: &[u8]) -> &ObjectId {
-        unsafe {
-            ::std::slice::from_raw_parts(
-                (bytes as *const Self) as *const u8,
-                ::std::mem::size_of::<Self>(),
-            )
-        };
-    }*/
+    pub(crate) fn from_bytes_with_prefix_padding(bytes: &[u8]) -> &Self {
+        let (_, body, _) = unsafe { bytes.align_to::<Self>() };
+        &body[0]
+    }
 
     pub fn get_time(&self) -> u32 {
-        self.time
+        self.time.to_be()
     }
 
     pub fn get_rand_counter(&self) -> u64 {

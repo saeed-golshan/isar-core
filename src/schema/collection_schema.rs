@@ -2,8 +2,9 @@ use crate::collection::IsarCollection;
 use crate::data_dbs::DataDbs;
 use crate::error::{illegal_arg, Result};
 use crate::index::{Index, IndexType};
+use crate::object::data_type::DataType;
 use crate::object::object_info::ObjectInfo;
-use crate::object::property::{DataType, Property};
+use crate::object::property::Property;
 use crate::schema::index_schema::IndexSchema;
 use crate::schema::property_schema::PropertySchema;
 use hashbrown::HashSet;
@@ -117,13 +118,10 @@ impl CollectionSchema {
         self.properties
             .iter()
             .map(|f| {
-                let property = Property::new(&f.name, f.data_type, offset);
+                let size = f.data_type.get_static_size();
 
-                let size = match f.data_type {
-                    DataType::Bool => 1,
-                    _ => 8,
-                };
-
+                offset += offset % size; // padding to align data
+                let property = Property::new(f.data_type, offset);
                 offset += size;
 
                 property

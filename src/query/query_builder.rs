@@ -1,7 +1,9 @@
 //use crate::query::filter::Filter;
 use crate::lmdb::db::Db;
+use crate::object::property::Property;
 use crate::option;
-use crate::query::query::Query;
+use crate::query::filter::Filter;
+use crate::query::query::{Query, Sort};
 use crate::query::where_clause::WhereClause;
 
 pub struct QueryBuilder {
@@ -11,7 +13,10 @@ pub struct QueryBuilder {
     secondary_dup_db: Db,
     has_secondary_where: bool,
     has_secondary_dup_where: bool,
-    //filter: Option<Filter>,
+    filter: Option<Filter>,
+    sort: Vec<(Property, Sort)>,
+    distinct: Vec<Property>,
+    offset_limit: Option<(usize, usize)>,
 }
 
 impl QueryBuilder {
@@ -23,11 +28,23 @@ impl QueryBuilder {
             secondary_dup_db,
             has_secondary_where: false,
             has_secondary_dup_where: false,
+            filter: None,
+            sort: vec![],
+            distinct: vec![],
+            offset_limit: None,
         }
     }
 
     pub fn add_where_clause(&mut self, wc: WhereClause) {
         self.where_clauses.push(wc)
+    }
+
+    pub fn set_filter(&mut self, filter: Filter) {
+        self.filter = Some(filter);
+    }
+
+    pub fn add_sort(&mut self, property: Property, sort: Sort) {
+        self.sort.push((property, sort))
     }
 
     /*pub fn merge_where_clauses(mut where_clauses: Vec<WhereClause>) -> Vec<WhereClause> {
@@ -72,6 +89,10 @@ impl QueryBuilder {
             self.primary_db,
             secondary_db,
             secondary_dup_db,
+            self.filter,
+            self.sort,
+            self.distinct,
+            self.offset_limit,
         )
     }
 }
