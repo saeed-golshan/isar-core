@@ -39,7 +39,7 @@ impl<'txn> Cursor<'txn> {
                 let data = unsafe { from_mdb_val(data) };
                 Ok(Some((key, data)))
             }
-            Err(LmdbError::NotFound) => Ok(None),
+            Err(LmdbError::NotFound { backtrace: _ }) => Ok(None),
             Err(e) => Err(e)?,
         }
     }
@@ -72,7 +72,7 @@ impl<'txn> Cursor<'txn> {
 
         match result {
             Ok(()) => Ok(true),
-            Err(LmdbError::NotFound) => Ok(false),
+            Err(LmdbError::NotFound { backtrace: _ }) => Ok(false),
             Err(e) => Err(e)?,
         }
     }

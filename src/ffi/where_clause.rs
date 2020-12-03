@@ -32,7 +32,6 @@ pub unsafe extern "C" fn isar_wc_add_lower_oid(
     where_clause: Option<&mut WhereClause>,
     time: *const u32,
     rand_counter: *const u64,
-    include: bool,
 ) {
     let time = if time.is_null() { None } else { Some(*time) };
     let rand_counter = if rand_counter.is_null() {
@@ -40,9 +39,7 @@ pub unsafe extern "C" fn isar_wc_add_lower_oid(
     } else {
         Some(*rand_counter)
     };
-    where_clause
-        .unwrap()
-        .add_lower_oid(time, rand_counter, include);
+    where_clause.unwrap().add_lower_oid(time, rand_counter);
 }
 
 #[no_mangle]
@@ -50,7 +47,6 @@ pub unsafe extern "C" fn isar_wc_add_upper_oid(
     where_clause: Option<&mut WhereClause>,
     time: *const u32,
     rand_counter: *const u64,
-    include: bool,
 ) {
     let time = if time.is_null() { None } else { Some(*time) };
     let rand_counter = if rand_counter.is_null() {
@@ -58,9 +54,7 @@ pub unsafe extern "C" fn isar_wc_add_upper_oid(
     } else {
         Some(*rand_counter)
     };
-    where_clause
-        .unwrap()
-        .add_upper_oid(time, rand_counter, include);
+    where_clause.unwrap().add_upper_oid(time, rand_counter);
 }
 
 #[no_mangle]

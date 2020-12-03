@@ -45,23 +45,23 @@ impl WhereClause {
         unimplemented!()
     }*/
 
-    pub fn add_lower_oid(&mut self, time: Option<u32>, rand_counter: Option<u64>, include: bool) {
-        let time = if let Some(time) = time { time } else { 0 };
+    pub fn add_lower_oid(&mut self, time: Option<u32>, rand_counter: Option<u64>) {
+        let time = if let Some(time) = time {
+            time
+        } else {
+            u32::MIN
+        };
         let rand_counter = if let Some(rand_counter) = rand_counter {
             rand_counter
         } else {
-            0
+            u64::MIN
         };
         let oid = ObjectId::new(time, rand_counter);
-        let mut bytes = oid.as_bytes().to_vec();
-        if !include {
-            let oid = u128::from_be_bytes(bytes.try_into().unwrap());
-            bytes = (oid + 1).to_be_bytes().to_vec();
-        }
+        let bytes = oid.as_bytes();
         self.lower_key.extend_from_slice(&bytes);
     }
 
-    pub fn add_upper_oid(&mut self, time: Option<u32>, rand_counter: Option<u64>, include: bool) {
+    pub fn add_upper_oid(&mut self, time: Option<u32>, rand_counter: Option<u64>) {
         let time = if let Some(time) = time {
             time
         } else {
@@ -73,11 +73,7 @@ impl WhereClause {
             u64::MAX
         };
         let oid = ObjectId::new(time, rand_counter);
-        let mut bytes = oid.as_bytes().to_vec();
-        if !include {
-            let oid = u128::from_be_bytes(bytes.try_into().unwrap());
-            bytes = (oid - 1).to_be_bytes().to_vec();
-        }
+        let bytes = oid.as_bytes();
         self.upper_key.extend_from_slice(&bytes);
     }
 
@@ -85,6 +81,7 @@ impl WhereClause {
         if !include {
             value += 1;
         }
+        println!("{:?}", self.lower_key);
         self.lower_key.extend_from_slice(&Index::get_int_key(value));
     }
 
@@ -192,6 +189,7 @@ pub struct WhereClauseIterator<'a, 'txn> {
 
 impl<'a, 'txn> WhereClauseIterator<'a, 'txn> {
     fn new(where_clause: &'a WhereClause, cursor: &'a mut Cursor<'txn>) -> Result<Self> {
+        println!("{:?}", &where_clause.lower_key);
         cursor.move_to_key_greater_than_or_equal_to(&where_clause.lower_key)?;
         Ok(WhereClauseIterator {
             where_clause,
@@ -222,7 +220,7 @@ impl<'a, 'txn> Iterator for WhereClauseIterator<'a, 'txn> {
 mod tests {
     use super::*;
     use crate::collection::IsarCollection;
-    use crate::{col, isar};
+    use crate::{col, ind, isar};
     use itertools::Itertools;
 
     #[macro_export]
@@ -245,7 +243,7 @@ mod tests {
 
     #[test]
     fn test_iter() {
-        isar!(isar, col => col!(field => String index field));
+        isar!(isar, col => col!(field => String; ind!(field)));
 
         let txn = isar.begin_txn(true).unwrap();
         let oid1 = col.put(&txn, None, &get_str_obj(&col, "aaaa")).unwrap();
@@ -277,4 +275,18 @@ mod tests {
         exec_wc!(txn, col, wc, oids);
         assert_eq!(&oids, &[oid3.as_bytes()]);
     }
+
+    #[test]
+    fn test_add_lower_oid() {
+        let mut wc = WhereClause::new(&[], IndexType::Primary);
+        wc.add_lower_oid(None, None);
+        assert_eq!(wc.lower_key, vec![0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+
+        let mut wc = WhereClause::new(&[], IndexType::Primary);
+        wc.add_lower_oid(Some(123), None);
+        assert_eq!(wc.lower_key, vec![0, 0, 0, 123, 0, 0, 0, 0, 0, 0, 0, 0])
+    }
+
+    #[test]
+    fn test_add_upper_oid() {}
 }

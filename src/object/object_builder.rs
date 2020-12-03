@@ -37,8 +37,7 @@ impl<'a> ObjectBuilder<'a> {
             let required = offset + bytes.len();
             self.object.resize(required, 0);
         }
-        self.object
-            .splice(offset..(offset + bytes.len()), bytes.iter().cloned());
+        self.object[offset..(offset + bytes.len())].clone_from_slice(&bytes[..]);
     }
 
     pub fn write_int(&mut self, value: i32) {

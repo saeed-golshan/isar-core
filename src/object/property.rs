@@ -46,18 +46,6 @@ bytes_length: u32 number of bytes OR 0 for null bytes
 padding: (len(bool_lists) + len(string lists) + len(bytes_lists)) % 4
  */
 
-#[repr(C)]
-struct DataPosition {
-    pub offset: u32,
-    pub length: u32,
-}
-
-impl DataPosition {
-    pub fn is_null(&self) -> bool {
-        self.offset == 0
-    }
-}
-
 #[derive(PartialEq, Eq, Copy, Clone, Debug)]
 pub struct Property {
     pub data_type: DataType,
@@ -130,12 +118,8 @@ impl Property {
     #[inline]
     pub fn get_length(&self, object: &[u8]) -> Option<usize> {
         assert!(self.data_type.is_dynamic());
-        let data_position = self.get_list_position(object, self.offset);
-        if !data_position.is_null() {
-            Some(data_position.length as usize)
-        } else {
-            None
-        }
+        let (_, list_length) = Self::get_list_offset_length(object, self.offset)?;
+        Some(list_length)
     }
 
     pub fn get_string<'a>(&self, object: &'a [u8]) -> Option<&'a str> {
@@ -145,7 +129,7 @@ impl Property {
     }
 
     pub fn get_bytes<'a>(&self, object: &'a [u8]) -> Option<&'a [u8]> {
-        assert_eq!(self.data_type, DataType::Bytes);
+        assert!(self.data_type == DataType::Bytes || self.data_type == DataType::String);
         self.get_list(object, self.offset)
     }
 
@@ -174,13 +158,10 @@ impl Property {
     }*/
 
     pub fn get_bytes_list<'a>(&self, object: &'a [u8]) -> Option<Vec<Option<&'a [u8]>>> {
-        let positions_offset = self.get_list_position(object, self.offset);
-        if positions_offset.is_null() {
-            return None;
-        }
-        let lists = (0..positions_offset.length)
+        let (list_offset, list_length) = Self::get_list_offset_length(object, self.offset)?;
+        let lists = (0..list_length)
             .map(|i| {
-                let list_offset = positions_offset.offset + i;
+                let list_offset = list_offset + i;
                 self.get_list(object, list_offset as usize)
             })
             .collect_vec();
@@ -188,20 +169,21 @@ impl Property {
     }
 
     #[inline]
-    fn get_list_position<'a>(&self, object: &'a [u8], offset: usize) -> &'a DataPosition {
-        let bytes = &object[offset..offset + 8];
-        &Self::transmute_verify_alignment::<DataPosition>(bytes)[0]
+    fn get_list_offset_length(object: &[u8], offset: usize) -> Option<(usize, usize)> {
+        let list_offset_bytes: [u8; 4] = object[offset..offset + 4].try_into().unwrap();
+        let list_offset = u32::from_le_bytes(list_offset_bytes);
+        if list_offset == 0 {
+            return None;
+        }
+        let list_length_bytes: [u8; 4] = object[(offset + 4)..(offset + 8)].try_into().unwrap();
+        let list_length = u32::from_le_bytes(list_length_bytes);
+        Some((list_offset as usize, list_length as usize))
     }
 
     fn get_list<'a, T>(&self, object: &'a [u8], offset: usize) -> Option<&'a [T]> {
-        let data_position = self.get_list_position(object, offset);
-        if data_position.is_null() {
-            return None;
-        }
-        let type_size = mem::size_of::<T>();
-        let offset = data_position.offset as usize;
-        let len_in_bytes = data_position.length as usize * type_size;
-        let list_bytes = &object[offset..offset + len_in_bytes];
+        let (list_offset, list_length) = Self::get_list_offset_length(object, offset)?;
+        let len_in_bytes = list_length * mem::size_of::<T>();
+        let list_bytes = &object[list_offset..list_offset + len_in_bytes];
         Some(&Self::transmute_verify_alignment::<T>(list_bytes))
     }
 
@@ -221,7 +203,7 @@ impl Property {
         }
     }
 
-    pub(crate) fn get_dynamic_raw<'a>(&self, object: &'a [u8]) -> Option<&'a [u8]> {
+    pub(crate) fn get_dynamic_raw<'a>(&self, _object: &'a [u8]) -> Option<&'a [u8]> {
         unimplemented!()
     }
 }
@@ -229,32 +211,7 @@ impl Property {
 #[cfg(test)]
 mod tests {
     use crate::object::property::{DataType, Property};
-    use std::mem;
-
-    #[repr(C, align(8))]
-    struct Align8([u8; 8]);
-
-    fn align(bytes: &[u8]) -> Vec<u8> {
-        let n_units = (bytes.len() / mem::size_of::<Align8>()) + 1;
-
-        let mut aligned: Vec<Align8> = Vec::with_capacity(n_units);
-
-        let ptr = aligned.as_mut_ptr();
-        let len_units = aligned.len();
-        let cap_units = aligned.capacity();
-
-        mem::forget(aligned);
-
-        let mut vec = unsafe {
-            Vec::from_raw_parts(
-                ptr as *mut u8,
-                len_units * mem::size_of::<Align8>(),
-                cap_units * mem::size_of::<Align8>(),
-            )
-        };
-        vec.extend_from_slice(bytes);
-        vec
-    }
+    use crate::utils::debug::align;
 
     #[test]
     fn test_int_is_null() {

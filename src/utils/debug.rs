@@ -6,6 +6,7 @@ use crate::lmdb::txn::Txn;
 use crate::object::object_id::ObjectId;
 use hashbrown::HashMap;
 use std::hash::Hash;
+use std::mem;
 
 #[macro_export]
 macro_rules! map (
@@ -45,16 +46,34 @@ macro_rules! isar (
 #[macro_export]
 macro_rules! col (
     ($($name:expr => $type:ident),+) => {
-        col!($($name => $type),+ index);
+        col!($($name => $type),+;);
     };
 
-    ($($name:expr => $type:ident),+ index $($($index:expr),+);*) => {
+    ($($name:expr => $type:ident),+; $($index:expr),*) => {
         {
             let mut collection = crate::schema::collection_schema::CollectionSchema::new(stringify!($($name)+));
             $(collection.add_property(stringify!($name), crate::object::data_type::DataType::$type).unwrap();)+
-            $(collection.add_index(&[$(stringify!($index)),+], false, false).unwrap();)*
+            $(
+                let (fields, unique, hash) = $index;
+                collection.add_index(fields, unique, hash).unwrap();
+            )*
             collection
         }
+    };
+);
+
+#[macro_export]
+macro_rules! ind (
+    ($($index:expr),+) => {
+        ind!($($index),+; false, false);
+    };
+
+    ($($index:expr),+; $unique:expr) => {
+        ind!($($index),+; $unique, false);
+    };
+
+    ($($index:expr),+; $unique:expr, $hash:expr) => {
+        (&[$(stringify!($index)),+], $unique, $hash)
     };
 );
 
@@ -93,4 +112,29 @@ pub fn dump_db(db: Db, txn: &Txn, prefix: Option<&[u8]>) -> HashMap<Vec<u8>, Vec
         map.insert(key.to_vec(), val.to_vec());
     }
     map
+}
+
+#[repr(C, align(8))]
+struct Align8([u8; 8]);
+
+pub fn align(bytes: &[u8]) -> Vec<u8> {
+    let n_units = (bytes.len() / mem::size_of::<Align8>()) + 1;
+
+    let mut aligned: Vec<Align8> = Vec::with_capacity(n_units);
+
+    let ptr = aligned.as_mut_ptr();
+    let len_units = aligned.len();
+    let cap_units = aligned.capacity();
+
+    mem::forget(aligned);
+
+    let mut vec = unsafe {
+        Vec::from_raw_parts(
+            ptr as *mut u8,
+            len_units * mem::size_of::<Align8>(),
+            cap_units * mem::size_of::<Align8>(),
+        )
+    };
+    vec.extend_from_slice(bytes);
+    vec
 }

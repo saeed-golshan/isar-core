@@ -43,7 +43,7 @@ impl Db {
                 let data = unsafe { from_mdb_val(data) };
                 Ok(Some(data))
             }
-            Err(LmdbError::NotFound) => Ok(None),
+            Err(LmdbError::NotFound { backtrace: _ }) => Ok(None),
             Err(e) => Err(e)?,
         }
     }
@@ -57,7 +57,7 @@ impl Db {
         let result = self.put_internal(txn, key, data, ffi::MDB_NOOVERWRITE);
         match result {
             Ok(()) => Ok(true),
-            Err(LmdbError::KeyExist) => Ok(false),
+            Err(LmdbError::KeyExist { backtrace: _ }) => Ok(false),
             Err(e) => Err(e)?,
         }
     }
@@ -66,7 +66,7 @@ impl Db {
         let result = self.put_internal(txn, key, data, ffi::MDB_NODUPDATA);
         match result {
             Ok(()) => Ok(true),
-            Err(LmdbError::KeyExist) => Ok(false),
+            Err(LmdbError::KeyExist { backtrace: _ }) => Ok(false),
             Err(e) => Err(e)?,
         }
     }

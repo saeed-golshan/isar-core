@@ -1,4 +1,5 @@
 //use crate::query::filter::Filter;
+use crate::index::IndexType;
 use crate::lmdb::db::Db;
 use crate::object::property::Property;
 use crate::option;
@@ -36,6 +37,11 @@ impl QueryBuilder {
     }
 
     pub fn add_where_clause(&mut self, wc: WhereClause) {
+        if wc.index_type == IndexType::Secondary {
+            self.has_secondary_where = true;
+        } else if wc.index_type == IndexType::SecondaryDup {
+            self.has_secondary_dup_where = true;
+        }
         self.where_clauses.push(wc)
     }
 

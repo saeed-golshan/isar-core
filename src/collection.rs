@@ -126,7 +126,7 @@ impl IsarCollection {
 
 #[cfg(test)]
 mod tests {
-    use crate::{col, isar, map};
+    use crate::{col, ind, isar, map};
 
     #[test]
     fn test_put_new() {
@@ -174,7 +174,7 @@ mod tests {
 
     #[test]
     fn test_put_creates_index() {
-        isar!(isar, col => col!(field1 => Int index field1));
+        isar!(isar, col => col!(field1 => Int; ind!(field1)));
 
         let txn = isar.begin_txn(true).unwrap();
 
@@ -190,7 +190,7 @@ mod tests {
 
     #[test]
     fn test_put_clears_old_index() {
-        isar!(isar, col => col!(field1 => Int index field1));
+        isar!(isar, col => col!(field1 => Int; ind!(field1)));
 
         let txn = isar.begin_txn(true).unwrap();
 
@@ -209,7 +209,7 @@ mod tests {
 
     #[test]
     fn test_delete() {
-        isar!(isar, col => col!(field1 => Int index field1));
+        isar!(isar, col => col!(field1 => Int; ind!(field1)));
 
         let txn = isar.begin_txn(true).unwrap();
 
@@ -232,7 +232,7 @@ mod tests {
 
     #[test]
     fn test_clear() {
-        isar!(isar, col1 => col!(f1 => Int index f1), col2 => col!(f2 => Int index f2));
+        isar!(isar, col1 => col!(f1 => Int; ind!(f1)), col2 => col!(f2 => Int; ind!(f2)));
 
         let txn = isar.begin_txn(true).unwrap();
 

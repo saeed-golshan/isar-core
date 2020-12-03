@@ -1,4 +1,4 @@
-use crate::error::Result;
+use crate::error::{IsarError, Result};
 use crate::lmdb::db::Db;
 use crate::lmdb::txn::Txn;
 use crate::object::object_id::ObjectId;
@@ -55,7 +55,19 @@ impl Index {
     pub(crate) fn create_for_object(&self, txn: &Txn, oid: ObjectId, object: &[u8]) -> Result<()> {
         let index_key = self.create_key(object);
         let oid_bytes = oid.as_bytes();
-        self.db.put(txn, &index_key, oid_bytes)
+        if self.index_type == IndexType::SecondaryDup {
+            self.db.put(txn, &index_key, oid_bytes)
+        } else {
+            let success = self.db.put_no_override(txn, &index_key, oid_bytes)?;
+            if success {
+                Ok(())
+            } else {
+                Err(IsarError::UniqueViolated {
+                    source: None,
+                    message: "This value already exists in the database.".to_string(),
+                })
+            }
+        }
     }
 
     pub(crate) fn delete_for_object(&self, txn: &Txn, oid: ObjectId, object: &[u8]) -> Result<()> {
@@ -210,14 +222,14 @@ impl Index {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{col, isar, map};
+    use crate::{col, ind, isar, map};
     use float_next_after::NextAfter;
 
     #[test]
     fn test_create_for_object() {
         macro_rules! test_index (
             ($data_type:ident , $data:expr, $bytes:expr, $to_index:ident) => {
-                isar!(isar, col => col!(field => $data_type index field));
+                isar!(isar, col => col!(field => $data_type; ind!(field)));
                 let txn = isar.begin_txn(true).unwrap();
                 let oid = col.put(&txn, None, $bytes).unwrap();
                 let index = col.debug_get_index(0);
@@ -237,12 +249,35 @@ mod tests {
             &123.456f64.to_le_bytes(),
             get_double_key
         );
-        test_index!(Bool, Some(true), &[2], get_bool_key);
+        test_index!(Bool, Some(false), &[0], get_bool_key);
+        test_index!(Bool, Some(true), &[1], get_bool_key);
+        test_index!(Bool, None, &[2], get_bool_key);
+
         //test_index!(String, Some(b"hello"), b"hello", get_string_value_key);
     }
 
     #[test]
     fn test_create_for_object_unique() {}
+
+    #[test]
+    fn test_create_for_violate_unique() {
+        isar!(isar, col => col!(field => Int; ind!(field; true)));
+        let txn = isar.begin_txn(true).unwrap();
+
+        let mut o = col.get_object_builder();
+        o.write_int(5);
+
+        col.put(&txn, None, o.to_bytes()).unwrap();
+
+        let result = col.put(&txn, None, o.to_bytes());
+        match result {
+            Err(IsarError::UniqueViolated {
+                source: _,
+                message: _,
+            }) => {}
+            _ => panic!("wrong error"),
+        };
+    }
 
     #[test]
     fn test_create_for_object_compound() {}
@@ -380,7 +415,7 @@ mod tests {
 
     #[test]
     fn test_get_string_value_key() {
-        let long_str = (0..1500).map(|_| "a").collect::<String>();
+        //let long_str = (0..1500).map(|_| "a").collect::<String>();
 
         let pairs: Vec<(&str, Vec<u8>)> = vec![("hello", b"hello".to_vec())];
         for (str, hash) in pairs {

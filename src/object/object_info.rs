@@ -18,10 +18,8 @@ impl ObjectInfo {
     }
 
     fn calculate_static_size(properties: &[Property]) -> usize {
-        properties
-            .iter()
-            .map(|f| f.data_type.get_static_size() as usize)
-            .sum()
+        let last_property = properties.last().unwrap();
+        last_property.offset + last_property.data_type.get_static_size()
     }
 
     fn find_first_dynamic_property_index(properties: &[Property]) -> Option<usize> {

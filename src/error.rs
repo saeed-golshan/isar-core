@@ -49,8 +49,11 @@ pub enum IsarError {
 impl From<LmdbError> for IsarError {
     fn from(e: LmdbError) -> Self {
         match e {
-            LmdbError::MapFull => IsarError::DbFull { source: e },
-            LmdbError::Other(2) => IsarError::IllegalArgument {
+            LmdbError::MapFull { backtrace: _ } => IsarError::DbFull { source: e },
+            LmdbError::Other {
+                code: 2,
+                backtrace: _,
+            } => IsarError::IllegalArgument {
                 source: Some(Box::new(e)),
                 message:
                     "No such file or directory. Please make sure that the provided path is valid."

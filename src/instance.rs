@@ -81,4 +81,19 @@ impl IsarInstance {
     pub fn create_query_builder(&self) -> QueryBuilder {
         QueryBuilder::new(self.dbs.primary, self.dbs.secondary, self.dbs.secondary_dup)
     }
+
+    #[cfg(test)]
+    pub fn debug_get_primary_db(&self) -> Db {
+        self.dbs.primary
+    }
+
+    #[cfg(test)]
+    pub fn debug_get_secondary_db(&self) -> Db {
+        self.dbs.secondary
+    }
+
+    #[cfg(test)]
+    pub fn debug_get_secondary_dup_db(&self) -> Db {
+        self.dbs.secondary_dup
+    }
 }

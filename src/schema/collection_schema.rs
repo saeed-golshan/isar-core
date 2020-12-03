@@ -120,7 +120,10 @@ impl CollectionSchema {
             .map(|f| {
                 let size = f.data_type.get_static_size();
 
-                offset += offset % size; // padding to align data
+                if offset % size != 0 {
+                    offset += size - offset % size;
+                }
+                // padding to align data
                 let property = Property::new(f.data_type, offset);
                 offset += size;
 

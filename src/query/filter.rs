@@ -85,13 +85,13 @@ primitive_filter!(LongBetween, Long, i64, get_long);
 primitive_filter!(FloatBetween, Float, f32, get_float);
 primitive_filter!(DoubleBetween, Double, f64, get_double);
 
-pub struct StrAnyOf {
+/*pub struct StrAnyOf {
     property: Property,
     values: Vec<Option<Vec<u8>>>,
     case: Case,
 }
 
-/*impl StrAnyOf {
+impl StrAnyOf {
     pub fn new(property: Property, values: &[Option<&str>], case: Case) -> StrAnyOf {
         let values = if case == Case::Insensitive {
             values
