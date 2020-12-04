@@ -1,15 +1,14 @@
 use crate::error::{IsarError, Result};
 use crate::lmdb::db::Db;
 use crate::lmdb::txn::Txn;
-use crate::object::object_id::ObjectId;
+use crate::object::data_type::DataType;
 use crate::object::property::Property;
 use crate::query::where_clause::WhereClause;
 use std::mem::transmute;
 use wyhash::wyhash;
 
-use crate::object::data_type::DataType;
 #[cfg(test)]
-use {crate::utils::debug::dump_db, hashbrown::HashMap};
+use {crate::utils::debug::dump_db, hashbrown::HashSet};
 
 pub const MAX_STRING_INDEX_SIZE: usize = 1500;
 
@@ -52,13 +51,12 @@ impl Index {
         }
     }
 
-    pub(crate) fn create_for_object(&self, txn: &Txn, oid: ObjectId, object: &[u8]) -> Result<()> {
+    pub(crate) fn create_for_object(&self, txn: &Txn, key: &[u8], object: &[u8]) -> Result<()> {
         let index_key = self.create_key(object);
-        let oid_bytes = oid.as_bytes();
         if self.index_type == IndexType::SecondaryDup {
-            self.db.put(txn, &index_key, oid_bytes)
+            self.db.put(txn, &index_key, key)
         } else {
-            let success = self.db.put_no_override(txn, &index_key, oid_bytes)?;
+            let success = self.db.put_no_override(txn, &index_key, key)?;
             if success {
                 Ok(())
             } else {
@@ -70,10 +68,10 @@ impl Index {
         }
     }
 
-    pub(crate) fn delete_for_object(&self, txn: &Txn, oid: ObjectId, object: &[u8]) -> Result<()> {
+    pub(crate) fn delete_for_object(&self, txn: &Txn, key: &[u8], object: &[u8]) -> Result<()> {
         let index_key = self.create_key(object);
         if self.index_type == IndexType::SecondaryDup {
-            self.db.delete(txn, &index_key, Some(oid.as_bytes()))
+            self.db.delete(txn, &index_key, Some(key))
         } else {
             self.db.delete(txn, &index_key, None)
         }
@@ -201,16 +199,16 @@ impl Index {
     }
 
     #[cfg(test)]
-    pub fn debug_dump(&self, txn: &Txn) -> HashMap<Vec<u8>, Vec<u8>> {
+    pub fn debug_dump(&self, txn: &Txn) -> HashSet<(Vec<u8>, Vec<u8>)> {
         dump_db(self.db, txn, Some(&self.prefix))
             .into_iter()
-            .map(|(key, val)| (key[2..].to_vec(), val))
+            .map(|(key, val)| (key.to_vec(), val.to_vec()))
             .collect()
     }
 
     #[cfg(test)]
     pub fn debug_create_key(&self, object: &[u8]) -> Vec<u8> {
-        self.create_key(object)[2..].to_vec()
+        self.create_key(object).to_vec()
     }
 
     #[cfg(test)]
@@ -222,7 +220,7 @@ impl Index {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{col, ind, isar, map};
+    use crate::{col, ind, isar, set};
     use float_next_after::NextAfter;
 
     #[test]
@@ -235,7 +233,7 @@ mod tests {
                 let index = col.debug_get_index(0);
                 assert_eq!(
                     index.debug_dump(&txn),
-                    map!(Index::$to_index($data) => oid.as_bytes())
+                    set![(Index::$to_index($data), oid.as_bytes().to_vec())]
                 )
             };
         );
@@ -266,10 +264,11 @@ mod tests {
 
         let mut o = col.get_object_builder();
         o.write_int(5);
+        let bytes = o.finish();
 
-        col.put(&txn, None, o.to_bytes()).unwrap();
+        col.put(&txn, None, &bytes).unwrap();
 
-        let result = col.put(&txn, None, o.to_bytes());
+        let result = col.put(&txn, None, &bytes);
         match result {
             Err(IsarError::UniqueViolated {
                 source: _,

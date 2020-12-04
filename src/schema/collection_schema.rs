@@ -3,6 +3,7 @@ use crate::data_dbs::DataDbs;
 use crate::error::{illegal_arg, Result};
 use crate::index::{Index, IndexType};
 use crate::object::data_type::DataType;
+use crate::object::object_id::ObjectId;
 use crate::object::object_info::ObjectInfo;
 use crate::object::property::Property;
 use crate::schema::index_schema::IndexSchema;
@@ -113,7 +114,8 @@ impl CollectionSchema {
     }
 
     fn get_properties(&self) -> Vec<Property> {
-        let mut offset = 0;
+        let oid_offset = ObjectId::get_size();
+        let mut offset = oid_offset;
 
         self.properties
             .iter()
@@ -124,7 +126,7 @@ impl CollectionSchema {
                     offset += size - offset % size;
                 }
                 // padding to align data
-                let property = Property::new(f.data_type, offset);
+                let property = Property::new(f.data_type, offset - oid_offset);
                 offset += size;
 
                 property

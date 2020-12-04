@@ -56,8 +56,8 @@ impl WhereClause {
         } else {
             u64::MIN
         };
-        let oid = ObjectId::new(time, rand_counter);
-        let bytes = oid.as_bytes();
+        let oid = ObjectId::new(0, time, rand_counter);
+        let bytes = &oid.as_bytes()[2..];
         self.lower_key.extend_from_slice(&bytes);
     }
 
@@ -72,8 +72,8 @@ impl WhereClause {
         } else {
             u64::MAX
         };
-        let oid = ObjectId::new(time, rand_counter);
-        let bytes = oid.as_bytes();
+        let oid = ObjectId::new(0, time, rand_counter);
+        let bytes = &oid.as_bytes()[2..];
         self.upper_key.extend_from_slice(&bytes);
     }
 
@@ -81,7 +81,6 @@ impl WhereClause {
         if !include {
             value += 1;
         }
-        println!("{:?}", self.lower_key);
         self.lower_key.extend_from_slice(&Index::get_int_key(value));
     }
 
@@ -189,7 +188,6 @@ pub struct WhereClauseIterator<'a, 'txn> {
 
 impl<'a, 'txn> WhereClauseIterator<'a, 'txn> {
     fn new(where_clause: &'a WhereClause, cursor: &'a mut Cursor<'txn>) -> Result<Self> {
-        println!("{:?}", &where_clause.lower_key);
         cursor.move_to_key_greater_than_or_equal_to(&where_clause.lower_key)?;
         Ok(WhereClauseIterator {
             where_clause,
@@ -238,7 +236,7 @@ mod tests {
     fn get_str_obj(col: &IsarCollection, str: &str) -> Vec<u8> {
         let mut ob = col.get_object_builder();
         ob.write_string(Some(str));
-        ob.to_bytes().to_vec()
+        ob.finish()
     }
 
     #[test]

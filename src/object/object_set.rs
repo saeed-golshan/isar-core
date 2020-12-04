@@ -1,3 +1,4 @@
+use crate::collection::IsarCollection;
 use crate::object::object_id::ObjectId;
 use std::{ptr, slice};
 
@@ -43,9 +44,9 @@ impl RawObject {
         unsafe { slice::from_raw_parts(self.data, self.data_length as usize) }
     }
 
-    pub fn get_object_id(&self) -> Option<ObjectId> {
+    pub fn get_object_id(&self, col: &IsarCollection) -> Option<ObjectId> {
         if self.oid.0 != 0 {
-            Some(ObjectId::new(self.oid.0, self.oid.1))
+            Some(col.get_object_id(self.oid.0, self.oid.1))
         } else {
             None
         }

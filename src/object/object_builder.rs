@@ -1,4 +1,5 @@
 use crate::object::data_type::DataType;
+use crate::object::object_id::ObjectId;
 use crate::object::object_info::ObjectInfo;
 use crate::object::property::Property;
 use core::mem;
@@ -123,8 +124,12 @@ impl<'a> ObjectBuilder<'a> {
         self.write_list::<u8>(offset, None);
     }
 
-    pub fn to_bytes(&self) -> &[u8] {
-        &self.object
+    pub fn finish(self) -> Vec<u8> {
+        let mut object = self.object;
+        let oid_body_bytes = ObjectId::get_size() + object.len();
+        let padding = vec![0; 8 - oid_body_bytes % 8];
+        object.extend_from_slice(&padding);
+        object
     }
 
     fn write_list<T>(&mut self, offset: usize, list: Option<&[T]>) {
@@ -169,7 +174,7 @@ mod tests {
         builder!(b, Property::new(DataType::Int, 0));
 
         b.write_int(123);
-        assert_eq!(b.to_bytes(), 123i64.to_le_bytes())
+        assert_eq!(b.finish(), 123i64.to_le_bytes())
     }
 
     #[test]
@@ -183,11 +188,11 @@ mod tests {
     pub fn test_write_double() {
         builder!(b, Property::new(DataType::Double, 0));
         b.write_double(123.0);
-        assert_eq!(b.to_bytes(), 123f64.to_le_bytes());
+        assert_eq!(b.finish(), 123f64.to_le_bytes());
 
         builder!(b, Property::new(DataType::Double, 0));
         b.write_double(f64::NAN);
-        assert_eq!(b.to_bytes(), f64::NAN.to_le_bytes());
+        assert_eq!(b.finish(), f64::NAN.to_le_bytes());
     }
 
     #[test]
@@ -201,15 +206,15 @@ mod tests {
     pub fn test_write_bool() {
         builder!(b, Property::new(DataType::Bool, 0));
         b.write_bool(None);
-        assert_eq!(b.to_bytes(), &[Property::NULL_BOOL]);
+        assert_eq!(b.finish(), &[Property::NULL_BOOL]);
 
         builder!(b, Property::new(DataType::Bool, 0));
         b.write_bool(Some(false));
-        assert_eq!(b.to_bytes(), &[Property::FALSE_BOOL]);
+        assert_eq!(b.finish(), &[Property::FALSE_BOOL]);
 
         builder!(b, Property::new(DataType::Bool, 0));
         b.write_bool(Some(true));
-        assert_eq!(b.to_bytes(), &[Property::TRUE_BOOL]);
+        assert_eq!(b.finish(), &[Property::TRUE_BOOL]);
     }
 
     #[test]

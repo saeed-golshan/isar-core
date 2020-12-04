@@ -4,7 +4,7 @@ use crate::collection::IsarCollection;
 use crate::lmdb::db::Db;
 use crate::lmdb::txn::Txn;
 use crate::object::object_id::ObjectId;
-use hashbrown::HashMap;
+use hashbrown::{HashMap, HashSet};
 use std::hash::Hash;
 use std::mem;
 
@@ -16,6 +16,18 @@ macro_rules! map (
             let mut m = ::hashbrown::HashMap::new();
             $(m.insert($key.to_vec(), $value.to_vec());)+
             m
+        }
+    };
+);
+
+#[macro_export]
+macro_rules! set (
+    [$($val:expr),+] => {
+        #[allow(clippy::useless_vec)]
+        {
+            let mut s = ::hashbrown::HashSet::new();
+            $(s.insert($val);)+
+            s
         }
     };
 );
@@ -94,8 +106,8 @@ pub fn ref_map<K: Eq + Hash, V>(map: &HashMap<K, V>) -> HashMap<&K, &V> {
     map.iter().map(|(k, v)| (k, v)).collect()
 }
 
-pub fn dump_db(db: Db, txn: &Txn, prefix: Option<&[u8]>) -> HashMap<Vec<u8>, Vec<u8>> {
-    let mut map = HashMap::new();
+pub fn dump_db(db: Db, txn: &Txn, prefix: Option<&[u8]>) -> HashSet<(Vec<u8>, Vec<u8>)> {
+    let mut set = HashSet::new();
     let mut cursor = db.cursor(&txn).unwrap();
 
     if let Some(prefix) = prefix {
@@ -109,9 +121,9 @@ pub fn dump_db(db: Db, txn: &Txn, prefix: Option<&[u8]>) -> HashMap<Vec<u8>, Vec
         if prefix.is_some() && !key.starts_with(prefix.unwrap()) {
             break;
         }
-        map.insert(key.to_vec(), val.to_vec());
+        set.insert((key.to_vec(), val.to_vec()));
     }
-    map
+    set
 }
 
 #[repr(C, align(8))]

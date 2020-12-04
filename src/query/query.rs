@@ -215,8 +215,8 @@ mod tests {
             o.write_bool(Some(f2));
             o.write_int(f1);
             o.write_string(Some(&f3));
-            let bytes = o.to_bytes();
-            println!("{:?}", bytes);
+            let bytes = o.finish();
+            println!("{:?}", &bytes);
             ids.push(col.put(&txn, None, &bytes)?);
         }
         Ok((isar, ids))
