@@ -8,7 +8,6 @@ use crate::object::object_id_generator::ObjectIdGenerator;
 use crate::object::object_info::ObjectInfo;
 use crate::object::property::Property;
 use crate::query::where_clause::WhereClause;
-use rand::random;
 
 #[cfg(test)]
 use {crate::utils::debug::dump_db, hashbrown::HashSet};
@@ -28,7 +27,7 @@ impl IsarCollection {
             object_info,
             indexes,
             db,
-            oidg: ObjectIdGenerator::new(random()),
+            oidg: ObjectIdGenerator::new(id),
         }
     }
 
@@ -40,17 +39,27 @@ impl IsarCollection {
         ObjectId::new(self.id, time, rand_counter)
     }
 
+    pub fn verify_object_id(&self, oid: ObjectId) -> Result<()> {
+        if oid.get_prefix() != self.id {
+            illegal_arg("Invalid ObjectId for this collection.")
+        } else {
+            Ok(())
+        }
+    }
+
     pub fn get<'txn>(&self, txn: &'txn Txn, oid: ObjectId) -> Result<Option<&'txn [u8]>> {
+        self.verify_object_id(oid)?;
         let oid_bytes = oid.as_bytes();
         self.db.get(txn, &oid_bytes)
     }
 
     pub fn put(&self, txn: &Txn, oid: Option<ObjectId>, object: &[u8]) -> Result<ObjectId> {
         let oid = if let Some(oid) = oid {
+            self.verify_object_id(oid)?;
             self.delete_from_indexes(txn, oid)?;
             oid
         } else {
-            self.oidg.generate(self)
+            self.oidg.generate()
         };
 
         if (ObjectId::get_size() + object.len()) % 8 != 0 {
@@ -71,6 +80,7 @@ impl IsarCollection {
     }
 
     pub fn delete(&self, txn: &Txn, oid: ObjectId) -> Result<()> {
+        self.verify_object_id(oid)?;
         if self.delete_from_indexes(txn, oid)? {
             let oid_bytes = oid.as_bytes();
             self.db.delete(txn, &oid_bytes, None)?;
@@ -87,14 +97,14 @@ impl IsarCollection {
         Ok(())
     }
 
-    pub fn create_where_clause(&self, index_index: Option<usize>) -> Option<WhereClause> {
-        if let Some(index_index) = index_index {
-            self.indexes
-                .get(index_index)
-                .map(|i| i.create_where_clause())
-        } else {
-            Some(WhereClause::new(&self.id.to_le_bytes(), IndexType::Primary))
-        }
+    pub fn create_primary_where_clause(&self) -> WhereClause {
+        WhereClause::new(&self.id.to_le_bytes(), IndexType::Primary)
+    }
+
+    pub fn create_secondary_where_clause(&self, index_index: usize) -> Option<WhereClause> {
+        self.indexes
+            .get(index_index)
+            .map(|i| i.create_where_clause())
     }
 
     pub fn get_property_by_index(&self, property_index: usize) -> Option<Property> {
@@ -189,7 +199,7 @@ mod tests {
         let oid2 = col.put(&txn, Some(oid1), &object2).unwrap();
         assert_eq!(oid1, oid2);
 
-        let new_oid = col.oidg.generate(col);
+        let new_oid = col.oidg.generate();
         let mut builder = col.get_object_builder();
         builder.write_int(55555555);
         let object3 = builder.finish();

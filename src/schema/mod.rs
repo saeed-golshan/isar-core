@@ -29,7 +29,7 @@ impl Schema {
         Ok(())
     }
 
-    pub(crate) fn get_isar_collections(
+    pub(crate) fn build_collections(
         mut self,
         dbs: DataDbs,
         existing_schema: Option<&Schema>,
@@ -54,5 +54,24 @@ impl Schema {
         for collection in &mut self.collections {
             collection.update_with_existing_collection(existing_collections, &mut ids)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_add_collection() {
+        let mut schema = Schema::new();
+
+        let col1 = CollectionSchema::new("col");
+        schema.add_collection(col1).unwrap();
+
+        let col2 = CollectionSchema::new("other");
+        schema.add_collection(col2).unwrap();
+
+        let duplicate = CollectionSchema::new("col");
+        assert!(schema.add_collection(duplicate).is_err());
     }
 }

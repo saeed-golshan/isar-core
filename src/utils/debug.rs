@@ -110,10 +110,13 @@ pub fn dump_db(db: Db, txn: &Txn, prefix: Option<&[u8]>) -> HashSet<(Vec<u8>, Ve
     let mut set = HashSet::new();
     let mut cursor = db.cursor(&txn).unwrap();
 
-    if let Some(prefix) = prefix {
-        cursor.move_to_key_greater_than_or_equal_to(prefix).unwrap();
+    let result = if let Some(prefix) = prefix {
+        cursor.move_to_gte(prefix).unwrap()
     } else {
-        cursor.move_to_first().unwrap();
+        cursor.move_to_first().unwrap()
+    };
+    if result.is_none() {
+        return set;
     }
 
     for kv in cursor.iter() {

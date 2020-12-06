@@ -1,6 +1,6 @@
 use std::mem;
 
-#[derive(Copy, Clone, Eq, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[repr(packed)]
 pub struct ObjectId {
     prefix: u16,
@@ -13,7 +13,7 @@ impl ObjectId {
         mem::size_of::<ObjectId>()
     }
 
-    pub fn new(prefix: u16, time: u32, rand_counter: u64) -> Self {
+    pub(crate) fn new(prefix: u16, time: u32, rand_counter: u64) -> Self {
         ObjectId {
             prefix,
             time: time.to_be(),
@@ -24,6 +24,10 @@ impl ObjectId {
     pub(crate) fn from_bytes(bytes: &[u8]) -> &Self {
         let (_, body, _) = unsafe { bytes.align_to::<Self>() };
         &body[0]
+    }
+
+    pub fn get_prefix(&self) -> u16 {
+        self.prefix
     }
 
     pub fn get_time(&self) -> u32 {
@@ -44,11 +48,10 @@ impl ObjectId {
         };
         &bytes
     }
-}
 
-impl PartialEq for ObjectId {
-    fn eq(&self, other: &Self) -> bool {
-        other.time == self.time && other.rand_counter == self.rand_counter
+    #[inline]
+    pub(crate) fn as_bytes_without_prefix(&self) -> &[u8] {
+        &self.as_bytes()[2..]
     }
 }
 

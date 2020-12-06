@@ -12,6 +12,7 @@ use hashbrown::HashSet;
 use itertools::Itertools;
 use rand::random;
 use serde::{Deserialize, Serialize};
+use std::cmp;
 use std::cmp::Ordering;
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -76,7 +77,8 @@ impl CollectionSchema {
         }
 
         let duplicate = self.indexes.iter().any(|i| {
-            i.property_names == property_names && i.unique == unique && i.hash_value == hash_value
+            let min_len = cmp::min(i.property_names.len(), property_names.len());
+            i.property_names[..min_len] == property_names[..min_len]
         });
         if duplicate {
             illegal_arg("Index already exists")?;
@@ -230,8 +232,77 @@ impl CollectionSchema {
         }
         for index in &self.indexes {
             if let Some(id) = index.id {
-                ids.insert(id);
+                assert!(
+                    ids.insert(id),
+                    "Something is wrong, schema contains duplicate id."
+                );
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_add_property_empty_name() {
+        let mut col = CollectionSchema::new("col");
+        assert!(col.add_property("", DataType::Int).is_err())
+    }
+
+    #[test]
+    fn test_add_property_duplicate_name() {
+        let mut col = CollectionSchema::new("col");
+        col.add_property("prop", DataType::Int).unwrap();
+        assert!(col.add_property("prop", DataType::Int).is_err())
+    }
+
+    #[test]
+    fn test_add_property_same_type_wrong_order() {
+        let mut col = CollectionSchema::new("col");
+
+        col.add_property("b", DataType::Int).unwrap();
+        assert!(col.add_property("a", DataType::Int).is_err())
+    }
+
+    #[test]
+    fn test_add_property_wrong_order() {
+        let mut col = CollectionSchema::new("col");
+
+        col.add_property("a", DataType::Long).unwrap();
+        assert!(col.add_property("b", DataType::Int).is_err())
+    }
+
+    #[test]
+    fn test_add_index_without_properties() {
+        let mut col = CollectionSchema::new("col");
+
+        assert!(col.add_index(&[], false, false).is_err())
+    }
+
+    #[test]
+    fn test_add_index_too_many_properties() {
+        let mut col = CollectionSchema::new("col");
+        col.add_property("prop1", DataType::Int).unwrap();
+        col.add_property("prop2", DataType::Int).unwrap();
+        col.add_property("prop3", DataType::Int).unwrap();
+        col.add_property("prop4", DataType::Int).unwrap();
+
+        assert!(col
+            .add_index(&["prop1", "prop2", "prop3", "prop4"], false, false)
+            .is_err())
+    }
+
+    #[test]
+    fn test_add_duplicate_index() {
+        let mut col = CollectionSchema::new("col");
+        col.add_property("prop1", DataType::Int).unwrap();
+        col.add_property("prop2", DataType::Int).unwrap();
+
+        col.add_index(&["prop2"], false, false).unwrap();
+        col.add_index(&["prop1", "prop2"], false, false).unwrap();
+        assert!(col.add_index(&["prop1", "prop2"], false, false).is_err());
+        assert!(col.add_index(&["prop1"], false, false).is_err());
     }
 }

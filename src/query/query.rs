@@ -29,7 +29,7 @@ pub struct Query {
     secondary_dup_db: Option<Db>,
     filter: Option<Filter>,
     sort: Vec<(Property, Sort)>,
-    distinct: Vec<Property>,
+    distinct: Option<Vec<Property>>,
     offset_limit: Option<(usize, usize)>,
 }
 
@@ -42,7 +42,7 @@ impl Query {
         secondary_dup_db: Option<Db>,
         filter: Option<Filter>,
         sort: Vec<(Property, Sort)>,
-        distinct: Vec<Property>,
+        distinct: Option<Vec<Property>>,
         offset_limit: Option<(usize, usize)>,
     ) -> Self {
         Query {
@@ -89,7 +89,7 @@ impl Query {
     where
         F: FnMut(&'txn ObjectId, &'txn [u8]) -> bool,
     {
-        if !self.distinct.is_empty() {
+        if self.distinct.is_some() {
             let callback = self.add_distinct(callback);
             if self.offset_limit.is_some() {
                 let callback = self.add_offset_limit(callback);
@@ -127,7 +127,7 @@ impl Query {
     where
         F: FnMut(&'txn ObjectId, &'txn [u8]) -> bool,
     {
-        let properties = self.distinct.clone();
+        let properties = self.distinct.as_ref().unwrap().clone();
         let mut hashes = HashSet::new();
         move |key, val| {
             let mut hasher = WyHash::default();
@@ -206,39 +206,136 @@ mod tests {
     use crate::object::object_id::ObjectId;
     use crate::{col, ind, isar};
 
-    fn get_col(data: Vec<(i32, bool, String)>) -> Result<(IsarInstance, Vec<ObjectId>)> {
-        isar!(isar, col => col!(field1 => Bool,field2 => Int,field3=>String; ind!(field1, field2, field3), ind!(field2, field3), ind!(field3)));
-        let txn = isar.begin_txn(true)?;
+    fn get_col(data: Vec<(bool, i32, String)>) -> (IsarInstance, Vec<ObjectId>) {
+        isar!(isar, col => col!(field1 => Bool, field2 => Int, field3 => String; ind!(field1, field2; true), ind!(field3)));
+        let txn = isar.begin_txn(true).unwrap();
         let mut ids = vec![];
         for (f1, f2, f3) in data {
             let mut o = col.get_object_builder();
-            o.write_bool(Some(f2));
-            o.write_int(f1);
+            o.write_bool(Some(f1));
+            o.write_int(f2);
             o.write_string(Some(&f3));
             let bytes = o.finish();
-            println!("{:?}", &bytes);
-            ids.push(col.put(&txn, None, &bytes)?);
+            ids.push(col.put(&txn, None, &bytes).unwrap());
         }
-        Ok((isar, ids))
+        txn.commit().unwrap();
+        (isar, ids)
     }
 
     #[test]
-    fn test_primary_where_clause() -> Result<()> {
-        /*let (isar, ids) = get_col(vec![(25, true, "ab".to_string())])?;
+    fn test_no_where_clauses() {
+        let (isar, ids) = get_col(vec![(true, 1, "a".to_string()), (true, 2, "b".to_string())]);
         let col = isar.get_collection(0).unwrap();
+        let txn = isar.begin_txn(false).unwrap();
 
-        let mut qb = isar.create_query_builder();
-        let mut wc = col.create_where_clause(Some(0)).unwrap();
-        wc.add_lower_int(2, true);
-        wc.add_upper_int(4, false);
-        qb.add_where_clause(wc);
+        let q = isar.create_query_builder(col).build();
+        let results = q.find_all_vec(&txn).unwrap();
+
+        assert_eq!(results[0].0, &ids[0]);
+        assert_eq!(results[1].0, &ids[1]);
+    }
+
+    #[test]
+    fn test_single_primary_where_clause() {}
+
+    #[test]
+    fn test_single_secondary_where_clause() {
+        let (isar, ids) = get_col(vec![
+            (true, 1, "a".to_string()),
+            (false, 2, "b".to_string()),
+            (true, 3, "c".to_string()),
+            (false, 1, "d".to_string()),
+            (true, 2, "a".to_string()),
+            (false, 3, "b".to_string()),
+        ]);
+        let col = isar.get_collection(0).unwrap();
+        let txn = isar.begin_txn(false).unwrap();
+
+        let mut wc = col.create_secondary_where_clause(0).unwrap();
+        wc.add_bool(Some(false));
+
+        let mut qb = isar.create_query_builder(col);
+        qb.add_where_clause(wc.clone()).unwrap();
         let q = qb.build();
 
-        let txn = isar.begin_txn(false)?;
         let results = q.find_all_vec(&txn).unwrap();
-        //assert_eq!(results[0].0, &ids[1]);
-        //assert_eq!(results[1].0, &ids[2]);*/
+        assert_eq!(results[0].0, &ids[3]);
+        assert_eq!(results[1].0, &ids[1]);
+        assert_eq!(results[2].0, &ids[5]);
 
-        Ok(())
+        wc.add_lower_int(2, true);
+        let mut qb = isar.create_query_builder(col);
+        qb.add_where_clause(wc).unwrap();
+        let q = qb.build();
+
+        let results = q.find_all_vec(&txn).unwrap();
+        assert_eq!(results[0].0, &ids[1]);
+        assert_eq!(results[1].0, &ids[5]);
+    }
+
+    #[test]
+    fn test_single_secondary_where_clause_dup() {
+        let (isar, ids) = get_col(vec![
+            (true, 1, "aa".to_string()),
+            (true, 2, "ab".to_string()),
+            (true, 4, "bb".to_string()),
+            (true, 3, "ab".to_string()),
+        ]);
+        let col = isar.get_collection(0).unwrap();
+        let txn = isar.begin_txn(false).unwrap();
+
+        let mut wc = col.create_secondary_where_clause(1).unwrap();
+        wc.add_lower_string_value(Some("ab"), true);
+
+        let mut qb = isar.create_query_builder(col);
+        qb.add_where_clause(wc.clone()).unwrap();
+        let q = qb.build();
+
+        let results = q.find_all_vec(&txn).unwrap();
+        assert_eq!(results[0].0, &ids[1]);
+        assert_eq!(results[1].0, &ids[3]);
+        assert_eq!(results[2].0, &ids[2]);
+
+        wc.add_upper_string_value(Some("bb"), false);
+        let mut qb = isar.create_query_builder(col);
+        qb.add_where_clause(wc).unwrap();
+        let q = qb.build();
+
+        let results = q.find_all_vec(&txn).unwrap();
+        assert_eq!(results[0].0, &ids[1]);
+        assert_eq!(results[1].0, &ids[3]);
+    }
+
+    #[test]
+    fn test_multiple_where_clauses() {
+        let (isar, ids) = get_col(vec![
+            (true, 1, "aa".to_string()),
+            (true, 2, "ab".to_string()),
+            (false, 3, "ab".to_string()),
+            (true, 4, "bb".to_string()),
+            (false, 4, "bb".to_string()),
+            (true, 5, "bc".to_string()),
+        ]);
+        let col = isar.get_collection(0).unwrap();
+        let txn = isar.begin_txn(false).unwrap();
+
+        let mut primary_wc = col.create_primary_where_clause();
+        primary_wc.add_oid(ids[5]);
+
+        let mut secondary_wc = col.create_secondary_where_clause(0).unwrap();
+        secondary_wc.add_bool(Some(false));
+
+        let mut secondary_dup_wc = col.create_secondary_where_clause(1).unwrap();
+        secondary_dup_wc.add_upper_string_value(Some("ab"), false);
+
+        let mut qb = isar.create_query_builder(col);
+        qb.add_where_clause(primary_wc).unwrap();
+        qb.add_where_clause(secondary_wc).unwrap();
+        qb.add_where_clause(secondary_dup_wc).unwrap();
+        let q = qb.build();
+
+        let results = q.find_all_vec(&txn).unwrap();
+        assert_eq!(results[0].0, &ids[0]);
+        assert_eq!(results[1].0, &ids[3]);
     }
 }

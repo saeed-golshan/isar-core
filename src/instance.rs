@@ -21,7 +21,7 @@ impl IsarInstance {
         let env = Env::create(path, 5, max_size)?;
         let dbs = IsarInstance::open_databases(&env)?;
 
-        let collections = schema.get_isar_collections(dbs, None);
+        let collections = schema.build_collections(dbs, None);
 
         /*let txn = env.txn(true)?;
         Self::migrate_isar_database(&txn, dbs)?;
@@ -78,8 +78,13 @@ impl IsarInstance {
         self.collections.get(collection_index)
     }
 
-    pub fn create_query_builder(&self) -> QueryBuilder {
-        QueryBuilder::new(self.dbs.primary, self.dbs.secondary, self.dbs.secondary_dup)
+    pub fn create_query_builder(&self, collection: &IsarCollection) -> QueryBuilder {
+        QueryBuilder::new(
+            collection,
+            self.dbs.primary,
+            self.dbs.secondary,
+            self.dbs.secondary_dup,
+        )
     }
 
     #[cfg(test)]

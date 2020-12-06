@@ -102,7 +102,7 @@ impl Db {
     pub fn delete_key_prefix(&self, txn: &Txn, key_prefix: &[u8]) -> Result<()> {
         let mut cursor = self.cursor(txn)?;
         let check_prefix = |key: &[u8], _: &[u8]| &key[0..key_prefix.len()] == key_prefix;
-        if let Some((key, val)) = cursor.move_to_key_greater_than_or_equal_to(key_prefix)? {
+        if let Some((key, val)) = cursor.move_to_gte(key_prefix)? {
             if check_prefix(key, val) {
                 cursor.delete_current(self.dup)?;
                 cursor.delete_while(check_prefix, self.dup)?;

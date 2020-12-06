@@ -1,62 +1,94 @@
-use crate::collection::IsarCollection;
 use crate::object::object_id::ObjectId;
 use crate::utils::seconds_since_epoch;
 use std::cell::Cell;
 
 pub struct ObjectIdGenerator {
+    prefix: u16,
     counter: Cell<u16>,
+    counter_reset_time: Cell<u32>,
     time: fn() -> u64,
     random: fn() -> u64,
 }
 
 impl ObjectIdGenerator {
-    pub fn new(counter: u16) -> Self {
+    pub fn new(prefix: u16) -> Self {
         ObjectIdGenerator {
-            counter: Cell::new(counter),
+            prefix,
+            counter: Cell::new(0),
+            counter_reset_time: Cell::new(0),
             time: seconds_since_epoch,
             random: rand::random,
         }
     }
 
     #[cfg(test)]
-    pub fn new_debug(counter: u16, time: fn() -> u64, random: fn() -> u64) -> Self {
+    pub fn new_debug(prefix: u16, time: fn() -> u64, random: fn() -> u64) -> Self {
         ObjectIdGenerator {
-            counter: Cell::new(counter),
+            prefix,
+            counter: Cell::new(0),
+            counter_reset_time: Cell::new(0),
             time,
             random,
         }
     }
 
-    pub fn generate(&self, col: &IsarCollection) -> ObjectId {
-        let time = (self.time)();
+    pub fn generate(&self) -> ObjectId {
+        let precise_time = (self.time)();
+        let time = (precise_time & 0xFFFFFFFF) as u32;
+        let counter = if self.counter_reset_time.get() != time {
+            self.counter_reset_time.set(time);
+            self.counter.set(0);
+            0
+        } else {
+            self.counter.get()
+        };
         let random_number: u64 = (self.random)();
-        let rand_counter = self.counter.get().to_be() as u64 | random_number << 16;
+        let rand_counter = counter.to_be() as u64 | random_number << 16;
         self.counter.set(self.counter.get().wrapping_add(1));
 
-        col.get_object_id((time & 0xFFFFFFFF) as u32, rand_counter)
+        ObjectId::new(self.prefix, time, rand_counter)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{col, isar};
 
     #[test]
     fn test_generate() {
-        isar!(isar, col => col!(f1 => Int));
-        let oidg = ObjectIdGenerator::new_debug(555, || 1231231231, || 12345);
+        println!("{:?}", u16::from_be_bytes([0, 2]));
+        let mut oidg = ObjectIdGenerator::new_debug(
+            u16::from_be_bytes([1, 2]),
+            || u32::from_be_bytes([3, 4, 5, 6]) as u64,
+            || u64::from_be_bytes([7, 8, 9, 10, 11, 12, 13, 14]),
+        );
 
-        let oid = oidg.generate(col);
-        assert_eq!(oid.get_time(), 1231231231);
-        assert_eq!(oid.get_rand_counter(), 809042475);
+        assert_eq!(
+            oidg.generate().as_bytes(),
+            [2, 1, 3, 4, 5, 6, 0, 0, 14, 13, 12, 11, 10, 9]
+        );
+        assert_eq!(
+            oidg.generate().as_bytes(),
+            [2, 1, 3, 4, 5, 6, 0, 1, 14, 13, 12, 11, 10, 9]
+        );
+        assert_eq!(
+            oidg.generate().as_bytes(),
+            [2, 1, 3, 4, 5, 6, 0, 2, 14, 13, 12, 11, 10, 9]
+        );
 
-        let oid = oidg.generate(col);
-        assert_eq!(oid.get_time(), 1231231231);
-        assert_eq!(oid.get_rand_counter(), 809042476);
+        oidg.time = || u32::from_be_bytes([3, 4, 5, 7]) as u64;
 
-        let oid = oidg.generate(col);
-        assert_eq!(oid.get_time(), 1231231231);
-        assert_eq!(oid.get_rand_counter(), 809042477);
+        assert_eq!(
+            oidg.generate().as_bytes(),
+            [2, 1, 3, 4, 5, 7, 0, 0, 14, 13, 12, 11, 10, 9]
+        );
+        assert_eq!(
+            oidg.generate().as_bytes(),
+            [2, 1, 3, 4, 5, 7, 0, 1, 14, 13, 12, 11, 10, 9]
+        );
+        assert_eq!(
+            oidg.generate().as_bytes(),
+            [2, 1, 3, 4, 5, 7, 0, 2, 14, 13, 12, 11, 10, 9]
+        );
     }
 }
