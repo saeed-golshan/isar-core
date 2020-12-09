@@ -1,6 +1,6 @@
 use std::mem;
 
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
 #[repr(packed)]
 pub struct ObjectId {
     prefix: u16,

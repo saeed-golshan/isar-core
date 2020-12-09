@@ -1,7 +1,7 @@
 use crate::collection::IsarCollection;
 use crate::error::illegal_arg;
+use crate::ffi::raw_object_set::{RawObject, RawObjectId};
 use crate::lmdb::txn::Txn;
-use crate::object::object_set::RawObject;
 
 #[no_mangle]
 pub unsafe extern "C" fn isar_get(
@@ -35,7 +35,7 @@ pub unsafe extern "C" fn isar_put(
         let oid = object.get_object_id(collection);
         let data = object.object_as_slice();
         let oid = collection.put(txn.unwrap(), oid, data)?;
-        object.set_object_id(&oid);
+        object.set_object_id(oid);
     }
 }
 
@@ -43,11 +43,10 @@ pub unsafe extern "C" fn isar_put(
 pub unsafe extern "C" fn isar_delete(
     collection: Option<&IsarCollection>,
     txn: Option<&Txn>,
-    object: &mut RawObject,
+    oid: &RawObjectId,
 ) -> u8 {
     isar_try! {
         let collection = collection.unwrap();
-        let oid = object.get_object_id(collection).unwrap();
-        collection.delete(txn.unwrap(), oid)?;
+        collection.delete(txn.unwrap(), oid.get_object_id(collection))?;
     }
 }

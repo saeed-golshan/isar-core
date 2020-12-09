@@ -81,25 +81,39 @@ impl CollectionSchema {
             i.property_names[..min_len] == property_names[..min_len]
         });
         if duplicate {
-            illegal_arg("Index already exists")?;
+            illegal_arg("Index already exists.")?;
         }
 
-        let unknown_property = property_names
+        let properties: Option<Vec<_>> = property_names
             .iter()
-            .any(|index_property| !self.properties.iter().any(|f| f.name == *index_property));
-        if unknown_property {
-            illegal_arg("Index property does not exist")?;
+            .map(|index_property| self.properties.iter().find(|p| p.name == *index_property))
+            .collect();
+
+        if properties.is_none() {
+            illegal_arg("Index property does not exist.")?;
+        }
+        let properties = properties.unwrap();
+
+        let illegal_data_type = properties
+            .iter()
+            .any(|p| p.data_type.is_dynamic() && p.data_type != DataType::String);
+        if illegal_data_type {
+            illegal_arg("Illegal index data type.")?;
         }
 
-        let has_string_properties = property_names.iter().any(|name| {
-            self.properties.iter().any(|f| {
-                f.name == *name && f.data_type == DataType::String
-                    || f.data_type == DataType::StringList
-            })
-        });
+        let has_string_properties = properties.iter().any(|p| p.data_type == DataType::String);
+        if !has_string_properties && hash_value {
+            illegal_arg("Only string indexes can be hashed.")?;
+        }
 
-        if has_string_properties && hash_value {
-            illegal_arg("Only string indexes can be hashed")?;
+        if !hash_value {
+            for (index, property) in properties.iter().enumerate() {
+                if property.data_type == DataType::String && index < properties.len() - 1 {
+                    illegal_arg(
+                        "Non-hashed string indexes must only be at the end of a composite index.",
+                    )?;
+                }
+            }
         }
 
         self.indexes
@@ -244,6 +258,7 @@ impl CollectionSchema {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::lmdb::db::Db;
 
     #[test]
     fn test_add_property_empty_name() {
@@ -282,6 +297,37 @@ mod tests {
     }
 
     #[test]
+    fn test_add_index_with_non_existing_property() {
+        let mut col = CollectionSchema::new("col");
+        col.add_property("prop1", DataType::Int).unwrap();
+
+        col.add_index(&["prop1"], false, false).unwrap();
+        assert!(col.add_index(&["wrongprop"], false, false).is_err())
+    }
+
+    #[test]
+    fn test_add_index_with_illegal_data_type() {
+        let mut col = CollectionSchema::new("col");
+        col.add_property("bool", DataType::Bool).unwrap();
+        col.add_property("int", DataType::Int).unwrap();
+        col.add_property("float", DataType::Float).unwrap();
+        col.add_property("long", DataType::Long).unwrap();
+        col.add_property("double", DataType::Double).unwrap();
+        col.add_property("str", DataType::String).unwrap();
+        col.add_property("bytes", DataType::Bytes).unwrap();
+        col.add_property("intlist", DataType::IntList).unwrap();
+
+        col.add_index(&["int"], false, false).unwrap();
+        col.add_index(&["long"], false, false).unwrap();
+        col.add_index(&["float"], false, false).unwrap();
+        col.add_index(&["double"], false, false).unwrap();
+        col.add_index(&["bool"], false, false).unwrap();
+        col.add_index(&["str"], false, false).unwrap();
+        assert!(col.add_index(&["bytes"], false, false).is_err());
+        assert!(col.add_index(&["intlist"], false, false).is_err());
+    }
+
+    #[test]
     fn test_add_index_too_many_properties() {
         let mut col = CollectionSchema::new("col");
         col.add_property("prop1", DataType::Int).unwrap();
@@ -304,5 +350,50 @@ mod tests {
         col.add_index(&["prop1", "prop2"], false, false).unwrap();
         assert!(col.add_index(&["prop1", "prop2"], false, false).is_err());
         assert!(col.add_index(&["prop1"], false, false).is_err());
+    }
+
+    #[test]
+    fn test_add_composite_index_with_non_hashed_string_in_the_middle() {
+        let mut col = CollectionSchema::new("col");
+        col.add_property("int", DataType::Int).unwrap();
+        col.add_property("str", DataType::String).unwrap();
+
+        col.add_index(&["int", "str"], false, false).unwrap();
+        assert!(col.add_index(&["str", "int"], false, false).is_err());
+        col.add_index(&["str", "int"], false, true).unwrap();
+    }
+
+    #[test]
+    fn test_properties_have_correct_offset() {
+        fn get_offsets(mut schema: CollectionSchema) -> Vec<usize> {
+            let mut ids = HashSet::new();
+            schema.update_with_existing_collection(&[], &mut ids);
+            let col = schema.get_isar_collection(DataDbs::debug_new());
+            let mut offsets = vec![];
+            for i in 0..schema.properties.len() {
+                offsets.push(col.get_property_by_index(i).unwrap().offset);
+            }
+            offsets
+        }
+
+        let mut col = CollectionSchema::new("col");
+        col.add_property("bool", DataType::Bool).unwrap();
+        col.add_property("int", DataType::Int).unwrap();
+        col.add_property("double", DataType::Double).unwrap();
+        assert_eq!(get_offsets(col), vec![0, 2, 10]);
+
+        let mut col = CollectionSchema::new("col");
+        col.add_property("bool1", DataType::Bool).unwrap();
+        col.add_property("bool2", DataType::Bool).unwrap();
+        col.add_property("bool3", DataType::Bool).unwrap();
+        col.add_property("str", DataType::String).unwrap();
+        assert_eq!(get_offsets(col), vec![0, 1, 2, 10]);
+
+        let mut col = CollectionSchema::new("col");
+        col.add_property("bytes", DataType::Bytes).unwrap();
+        col.add_property("intList", DataType::IntList).unwrap();
+        col.add_property("doubleList", DataType::DoubleList)
+            .unwrap();
+        assert_eq!(get_offsets(col), vec![2, 10, 18]);
     }
 }

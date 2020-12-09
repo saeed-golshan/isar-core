@@ -19,4 +19,15 @@ impl DataDbs {
             links,
         }
     }
+
+    #[cfg(test)]
+    pub fn debug_new() -> Self {
+        DataDbs::new(
+            Db::debug_new(false),
+            Db::debug_new(false),
+            Db::debug_new(false),
+            Db::debug_new(true),
+            Db::debug_new(false),
+        )
+    }
 }

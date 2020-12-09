@@ -204,7 +204,7 @@ mod tests {
     use super::*;
     use crate::instance::IsarInstance;
     use crate::object::object_id::ObjectId;
-    use crate::{col, ind, isar};
+    use crate::{col, ind, isar, set};
 
     fn get_col(data: Vec<(bool, i32, String)>) -> (IsarInstance, Vec<ObjectId>) {
         isar!(isar, col => col!(field1 => Bool, field2 => Int, field3 => String; ind!(field1, field2; true), ind!(field3)));
@@ -222,6 +222,10 @@ mod tests {
         (isar, ids)
     }
 
+    fn keys(result: Vec<(&ObjectId, &[u8])>) -> Vec<ObjectId> {
+        result.iter().map(|(k, _)| **k).collect()
+    }
+
     #[test]
     fn test_no_where_clauses() {
         let (isar, ids) = get_col(vec![(true, 1, "a".to_string()), (true, 2, "b".to_string())]);
@@ -231,8 +235,7 @@ mod tests {
         let q = isar.create_query_builder(col).build();
         let results = q.find_all_vec(&txn).unwrap();
 
-        assert_eq!(results[0].0, &ids[0]);
-        assert_eq!(results[1].0, &ids[1]);
+        assert_eq!(keys(results), vec![ids[0], ids[1]]);
     }
 
     #[test]
@@ -259,9 +262,7 @@ mod tests {
         let q = qb.build();
 
         let results = q.find_all_vec(&txn).unwrap();
-        assert_eq!(results[0].0, &ids[3]);
-        assert_eq!(results[1].0, &ids[1]);
-        assert_eq!(results[2].0, &ids[5]);
+        assert_eq!(keys(results), vec![ids[3], ids[1], ids[5]]);
 
         wc.add_lower_int(2, true);
         let mut qb = isar.create_query_builder(col);
@@ -269,8 +270,7 @@ mod tests {
         let q = qb.build();
 
         let results = q.find_all_vec(&txn).unwrap();
-        assert_eq!(results[0].0, &ids[1]);
-        assert_eq!(results[1].0, &ids[5]);
+        assert_eq!(keys(results), vec![ids[1], ids[5]]);
     }
 
     #[test]
@@ -292,9 +292,7 @@ mod tests {
         let q = qb.build();
 
         let results = q.find_all_vec(&txn).unwrap();
-        assert_eq!(results[0].0, &ids[1]);
-        assert_eq!(results[1].0, &ids[3]);
-        assert_eq!(results[2].0, &ids[2]);
+        assert_eq!(keys(results), vec![ids[1], ids[3], ids[2]]);
 
         wc.add_upper_string_value(Some("bb"), false);
         let mut qb = isar.create_query_builder(col);
@@ -302,8 +300,7 @@ mod tests {
         let q = qb.build();
 
         let results = q.find_all_vec(&txn).unwrap();
-        assert_eq!(results[0].0, &ids[1]);
-        assert_eq!(results[1].0, &ids[3]);
+        assert_eq!(keys(results), vec![ids[1], ids[3]]);
     }
 
     #[test]
@@ -335,7 +332,7 @@ mod tests {
         let q = qb.build();
 
         let results = q.find_all_vec(&txn).unwrap();
-        assert_eq!(results[0].0, &ids[0]);
-        assert_eq!(results[1].0, &ids[3]);
+        let set: HashSet<ObjectId> = keys(results).into_iter().collect();
+        assert_eq!(set, set!(ids[0], ids[2], ids[4], ids[5]));
     }
 }
