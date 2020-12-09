@@ -3,34 +3,9 @@ use crate::object::object_id::ObjectId;
 use std::{ptr, slice};
 
 #[repr(C)]
-pub struct RawObjectId {
-    time: u32,
-    rand_counter: u64,
-}
-
-impl RawObjectId {
-    pub fn from_object_id(oid: ObjectId) -> Self {
-        RawObjectId {
-            time: oid.get_time(),
-            rand_counter: oid.get_rand_counter(),
-        }
-    }
-
-    pub fn zero() -> Self {
-        RawObjectId {
-            time: 0,
-            rand_counter: 0,
-        }
-    }
-
-    pub fn get_object_id(&self, collection: &IsarCollection) -> ObjectId {
-        collection.get_object_id(self.time, self.rand_counter)
-    }
-}
-
-#[repr(C)]
 pub struct RawObject {
-    oid: RawObjectId,
+    oid_time: u32,
+    oid_rand_counter: u64,
     data: *const u8,
     data_length: u32,
 }
@@ -38,7 +13,8 @@ pub struct RawObject {
 impl RawObject {
     pub fn new(oid: ObjectId, object: &[u8]) -> Self {
         let mut obj = RawObject {
-            oid: RawObjectId::from_object_id(oid),
+            oid_time: oid.get_time(),
+            oid_rand_counter: oid.get_rand_counter(),
             data: ptr::null(),
             data_length: 0,
         };
@@ -54,11 +30,13 @@ impl RawObject {
     }
 
     pub fn set_object_id(&mut self, oid: ObjectId) {
-        self.oid = RawObjectId::from_object_id(oid);
+        self.oid_time = oid.get_time();
+        self.oid_rand_counter = oid.get_rand_counter();
     }
 
     pub fn set_empty(&mut self) {
-        self.oid = RawObjectId::zero();
+        self.oid_time = 0;
+        self.oid_rand_counter = 0;
         self.data = ptr::null();
         self.data_length = 0;
     }
@@ -68,8 +46,8 @@ impl RawObject {
     }
 
     pub fn get_object_id(&self, col: &IsarCollection) -> Option<ObjectId> {
-        if self.oid.time != 0 {
-            Some(self.oid.get_object_id(col))
+        if self.oid_time != 0 {
+            Some(col.get_object_id(self.oid_time, self.oid_rand_counter))
         } else {
             None
         }
