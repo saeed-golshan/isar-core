@@ -5,127 +5,83 @@ use thiserror::Error;
 
 use libc::c_int;
 use lmdb_sys as ffi;
-use std::backtrace::Backtrace;
 use std::result::Result;
 
 #[derive(Debug, Error)]
 pub enum LmdbError {
     /// key/data pair already exists.
-    KeyExist { backtrace: Backtrace },
+    KeyExist {},
     /// key/data pair not found (EOF).
-    NotFound { backtrace: Backtrace },
+    NotFound {},
     /// Requested page not found - this usually indicates corruption.
-    PageNotFound { backtrace: Backtrace },
+    PageNotFound {},
     /// Located page was wrong type.
-    Corrupted { backtrace: Backtrace },
+    Corrupted {},
     /// Update of meta page failed or environment had fatal IsarError.
-    Panic { backtrace: Backtrace },
+    Panic {},
     /// Environment version mismatch.
-    VersionMismatch { backtrace: Backtrace },
+    VersionMismatch {},
     /// File is not a valid LMDB file.
-    Invalid { backtrace: Backtrace },
+    Invalid {},
     /// Environment mapsize reached.
-    MapFull { backtrace: Backtrace },
+    MapFull {},
     /// Environment maxdbs reached.
-    DbsFull { backtrace: Backtrace },
+    DbsFull {},
     /// Environment maxreaders reached.
-    ReadersFull { backtrace: Backtrace },
+    ReadersFull {},
     /// Too many TLS keys in use - Windows only.
-    TlsFull { backtrace: Backtrace },
+    TlsFull {},
     /// Txn has too many dirty pages.
-    TxnFull { backtrace: Backtrace },
+    TxnFull {},
     /// Cursor stack too deep - internal IsarError.
-    CursorFull { backtrace: Backtrace },
+    CursorFull {},
     /// Page has not enough space - internal IsarError.
-    PageFull { backtrace: Backtrace },
+    PageFull {},
     /// Database contents grew beyond environment mapsize.
-    MapResized { backtrace: Backtrace },
+    MapResized {},
     /// Operation and DB incompatible, or DB type changed. This can mean:
     ///   - The operation expects an MDB_DUPSORT / MDB_DUPFIXED database.
     ///   - Opening a named DB when the unnamed DB has MDB_DUPSORT / MDB_INTEGERKEY.
     ///   - Accessing a data record as a database, or vice versa.
     ///   - The database was dropped and recreated with different flags.
-    Incompatible { backtrace: Backtrace },
+    Incompatible {},
     /// Invalid reuse of reader locktable slot.
-    BadRslot { backtrace: Backtrace },
+    BadRslot {},
     /// Transaction cannot recover - it must be aborted.
-    BadTxn { backtrace: Backtrace },
+    BadTxn {},
     /// Unsupported size of key/DB name/data, or wrong DUP_FIXED size.
-    BadValSize { backtrace: Backtrace },
+    BadValSize {},
     /// The specified DBI was changed unexpectedly.
-    BadDbi { backtrace: Backtrace },
+    BadDbi {},
     /// Other IsarError.
-    Other { code: c_int, backtrace: Backtrace },
+    Other { code: c_int },
 }
 
 impl LmdbError {
     /// Converts a raw LmdbError code to an `Error`.
     pub fn from_err_code(err_code: c_int) -> LmdbError {
         match err_code {
-            ffi::MDB_KEYEXIST => LmdbError::KeyExist {
-                backtrace: Backtrace::force_capture(),
-            },
-            ffi::MDB_NOTFOUND => LmdbError::NotFound {
-                backtrace: Backtrace::force_capture(),
-            },
-            ffi::MDB_PAGE_NOTFOUND => LmdbError::PageNotFound {
-                backtrace: Backtrace::force_capture(),
-            },
-            ffi::MDB_CORRUPTED => LmdbError::Corrupted {
-                backtrace: Backtrace::force_capture(),
-            },
-            ffi::MDB_PANIC => LmdbError::Panic {
-                backtrace: Backtrace::force_capture(),
-            },
-            ffi::MDB_VERSION_MISMATCH => LmdbError::VersionMismatch {
-                backtrace: Backtrace::force_capture(),
-            },
-            ffi::MDB_INVALID => LmdbError::Invalid {
-                backtrace: Backtrace::force_capture(),
-            },
-            ffi::MDB_MAP_FULL => LmdbError::MapFull {
-                backtrace: Backtrace::force_capture(),
-            },
-            ffi::MDB_DBS_FULL => LmdbError::DbsFull {
-                backtrace: Backtrace::force_capture(),
-            },
-            ffi::MDB_READERS_FULL => LmdbError::ReadersFull {
-                backtrace: Backtrace::force_capture(),
-            },
-            ffi::MDB_TLS_FULL => LmdbError::TlsFull {
-                backtrace: Backtrace::force_capture(),
-            },
-            ffi::MDB_TXN_FULL => LmdbError::TxnFull {
-                backtrace: Backtrace::force_capture(),
-            },
-            ffi::MDB_CURSOR_FULL => LmdbError::CursorFull {
-                backtrace: Backtrace::force_capture(),
-            },
-            ffi::MDB_PAGE_FULL => LmdbError::PageFull {
-                backtrace: Backtrace::force_capture(),
-            },
-            ffi::MDB_MAP_RESIZED => LmdbError::MapResized {
-                backtrace: Backtrace::force_capture(),
-            },
-            ffi::MDB_INCOMPATIBLE => LmdbError::Incompatible {
-                backtrace: Backtrace::force_capture(),
-            },
-            ffi::MDB_BAD_RSLOT => LmdbError::BadRslot {
-                backtrace: Backtrace::force_capture(),
-            },
-            ffi::MDB_BAD_TXN => LmdbError::BadTxn {
-                backtrace: Backtrace::force_capture(),
-            },
-            ffi::MDB_BAD_VALSIZE => LmdbError::BadValSize {
-                backtrace: Backtrace::force_capture(),
-            },
-            ffi::MDB_BAD_DBI => LmdbError::BadDbi {
-                backtrace: Backtrace::force_capture(),
-            },
-            other => LmdbError::Other {
-                code: other,
-                backtrace: Backtrace::force_capture(),
-            },
+            ffi::MDB_KEYEXIST => LmdbError::KeyExist {},
+            ffi::MDB_NOTFOUND => LmdbError::NotFound {},
+            ffi::MDB_PAGE_NOTFOUND => LmdbError::PageNotFound {},
+            ffi::MDB_CORRUPTED => LmdbError::Corrupted {},
+            ffi::MDB_PANIC => LmdbError::Panic {},
+            ffi::MDB_VERSION_MISMATCH => LmdbError::VersionMismatch {},
+            ffi::MDB_INVALID => LmdbError::Invalid {},
+            ffi::MDB_MAP_FULL => LmdbError::MapFull {},
+            ffi::MDB_DBS_FULL => LmdbError::DbsFull {},
+            ffi::MDB_READERS_FULL => LmdbError::ReadersFull {},
+            ffi::MDB_TLS_FULL => LmdbError::TlsFull {},
+            ffi::MDB_TXN_FULL => LmdbError::TxnFull {},
+            ffi::MDB_CURSOR_FULL => LmdbError::CursorFull {},
+            ffi::MDB_PAGE_FULL => LmdbError::PageFull {},
+            ffi::MDB_MAP_RESIZED => LmdbError::MapResized {},
+            ffi::MDB_INCOMPATIBLE => LmdbError::Incompatible {},
+            ffi::MDB_BAD_RSLOT => LmdbError::BadRslot {},
+            ffi::MDB_BAD_TXN => LmdbError::BadTxn {},
+            ffi::MDB_BAD_VALSIZE => LmdbError::BadValSize {},
+            ffi::MDB_BAD_DBI => LmdbError::BadDbi {},
+            other => LmdbError::Other { code: other },
         }
     }
 
@@ -133,30 +89,27 @@ impl LmdbError {
     #[allow(clippy::trivially_copy_pass_by_ref)]
     pub fn to_err_code(&self) -> i32 {
         match *self {
-            LmdbError::KeyExist { backtrace: _ } => ffi::MDB_KEYEXIST,
-            LmdbError::NotFound { backtrace: _ } => ffi::MDB_NOTFOUND,
-            LmdbError::PageNotFound { backtrace: _ } => ffi::MDB_PAGE_NOTFOUND,
-            LmdbError::Corrupted { backtrace: _ } => ffi::MDB_CORRUPTED,
-            LmdbError::Panic { backtrace: _ } => ffi::MDB_PANIC,
-            LmdbError::VersionMismatch { backtrace: _ } => ffi::MDB_VERSION_MISMATCH,
-            LmdbError::Invalid { backtrace: _ } => ffi::MDB_INVALID,
-            LmdbError::MapFull { backtrace: _ } => ffi::MDB_MAP_FULL,
-            LmdbError::DbsFull { backtrace: _ } => ffi::MDB_DBS_FULL,
-            LmdbError::ReadersFull { backtrace: _ } => ffi::MDB_READERS_FULL,
-            LmdbError::TlsFull { backtrace: _ } => ffi::MDB_TLS_FULL,
-            LmdbError::TxnFull { backtrace: _ } => ffi::MDB_TXN_FULL,
-            LmdbError::CursorFull { backtrace: _ } => ffi::MDB_CURSOR_FULL,
-            LmdbError::PageFull { backtrace: _ } => ffi::MDB_PAGE_FULL,
-            LmdbError::MapResized { backtrace: _ } => ffi::MDB_MAP_RESIZED,
-            LmdbError::Incompatible { backtrace: _ } => ffi::MDB_INCOMPATIBLE,
-            LmdbError::BadRslot { backtrace: _ } => ffi::MDB_BAD_RSLOT,
-            LmdbError::BadTxn { backtrace: _ } => ffi::MDB_BAD_TXN,
-            LmdbError::BadValSize { backtrace: _ } => ffi::MDB_BAD_VALSIZE,
-            LmdbError::BadDbi { backtrace: _ } => ffi::MDB_BAD_DBI,
-            LmdbError::Other {
-                code: err_code,
-                backtrace: _,
-            } => err_code,
+            LmdbError::KeyExist {} => ffi::MDB_KEYEXIST,
+            LmdbError::NotFound {} => ffi::MDB_NOTFOUND,
+            LmdbError::PageNotFound {} => ffi::MDB_PAGE_NOTFOUND,
+            LmdbError::Corrupted {} => ffi::MDB_CORRUPTED,
+            LmdbError::Panic {} => ffi::MDB_PANIC,
+            LmdbError::VersionMismatch {} => ffi::MDB_VERSION_MISMATCH,
+            LmdbError::Invalid {} => ffi::MDB_INVALID,
+            LmdbError::MapFull {} => ffi::MDB_MAP_FULL,
+            LmdbError::DbsFull {} => ffi::MDB_DBS_FULL,
+            LmdbError::ReadersFull {} => ffi::MDB_READERS_FULL,
+            LmdbError::TlsFull {} => ffi::MDB_TLS_FULL,
+            LmdbError::TxnFull {} => ffi::MDB_TXN_FULL,
+            LmdbError::CursorFull {} => ffi::MDB_CURSOR_FULL,
+            LmdbError::PageFull {} => ffi::MDB_PAGE_FULL,
+            LmdbError::MapResized {} => ffi::MDB_MAP_RESIZED,
+            LmdbError::Incompatible {} => ffi::MDB_INCOMPATIBLE,
+            LmdbError::BadRslot {} => ffi::MDB_BAD_RSLOT,
+            LmdbError::BadTxn {} => ffi::MDB_BAD_TXN,
+            LmdbError::BadValSize {} => ffi::MDB_BAD_VALSIZE,
+            LmdbError::BadDbi {} => ffi::MDB_BAD_DBI,
+            LmdbError::Other { code: err_code } => err_code,
         }
     }
 }

@@ -32,10 +32,6 @@ impl WhereClause {
         !self.check_below_upper_key(&self.lower_key)
     }
 
-    pub(crate) fn check_same_prefix(&self, other: &WhereClause) -> bool {
-        self.lower_key[0..2] == other.lower_key[0..2]
-    }
-
     #[inline]
     fn check_below_upper_key(&self, mut key: &[u8]) -> bool {
         let upper_key: &[u8] = &self.upper_key;
@@ -212,10 +208,8 @@ impl<'a, 'txn> Iterator for WhereClauseIterator<'a, 'txn> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::collection::IsarCollection;
-    use crate::{col, ind, isar};
-    use itertools::Itertools;
+    //use super::*;
+    //use itertools::Itertools;
 
     #[macro_export]
     macro_rules! exec_wc (
@@ -229,11 +223,11 @@ mod tests {
         };
     );
 
-    fn get_str_obj(col: &IsarCollection, str: &str) -> Vec<u8> {
+    /*fn get_str_obj(col: &IsarCollection, str: &str) -> Vec<u8> {
         let mut ob = col.get_object_builder();
         ob.write_string(Some(str));
         ob.finish()
-    }
+    }*/
 
     #[test]
     fn test_iter() {

@@ -23,7 +23,6 @@ macro_rules! map (
 #[macro_export]
 macro_rules! set (
     [$($val:expr),+] => {
-        #[allow(clippy::useless_vec)]
         {
             let mut s = ::hashbrown::HashSet::new();
             $(s.insert($val);)+

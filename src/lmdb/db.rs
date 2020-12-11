@@ -31,6 +31,7 @@ impl Db {
         Ok(Self { dbi, dup })
     }
 
+    #[allow(clippy::try_err)]
     pub fn get<'txn>(&self, txn: &'txn Txn, key: &[u8]) -> Result<Option<&'txn [u8]>> {
         let mut data = EMPTY_VAL;
         let result = unsafe {
@@ -43,7 +44,7 @@ impl Db {
                 let data = unsafe { from_mdb_val(data) };
                 Ok(Some(data))
             }
-            Err(LmdbError::NotFound { backtrace: _ }) => Ok(None),
+            Err(LmdbError::NotFound {}) => Ok(None),
             Err(e) => Err(e)?,
         }
     }
@@ -53,20 +54,22 @@ impl Db {
         Ok(())
     }
 
+    #[allow(clippy::try_err)]
     pub fn put_no_override(&self, txn: &Txn, key: &[u8], data: &[u8]) -> Result<bool> {
         let result = self.put_internal(txn, key, data, ffi::MDB_NOOVERWRITE);
         match result {
             Ok(()) => Ok(true),
-            Err(LmdbError::KeyExist { backtrace: _ }) => Ok(false),
+            Err(LmdbError::KeyExist {}) => Ok(false),
             Err(e) => Err(e)?,
         }
     }
 
+    #[allow(clippy::try_err)]
     pub fn put_no_dup_data(&self, txn: &Txn, key: &[u8], data: &[u8]) -> Result<bool> {
         let result = self.put_internal(txn, key, data, ffi::MDB_NODUPDATA);
         match result {
             Ok(()) => Ok(true),
-            Err(LmdbError::KeyExist { backtrace: _ }) => Ok(false),
+            Err(LmdbError::KeyExist {}) => Ok(false),
             Err(e) => Err(e)?,
         }
     }

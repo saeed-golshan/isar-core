@@ -54,7 +54,7 @@ impl RawObject {
     }
 }
 
-#[repr(C)]
+/*#[repr(C)]
 pub struct ObjectSet {
     objects: *mut RawObject,
     length: u32,
@@ -90,4 +90,4 @@ impl ObjectSet {
     pub fn length(&self) -> u32 {
         self.length
     }
-}
+}*/

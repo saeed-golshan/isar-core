@@ -8,9 +8,7 @@ use crate::object::object_info::ObjectInfo;
 use crate::object::property::Property;
 use crate::schema::index_schema::IndexSchema;
 use crate::schema::property_schema::PropertySchema;
-use hashbrown::HashSet;
 use itertools::Itertools;
-use rand::random;
 use serde::{Deserialize, Serialize};
 use std::cmp;
 use std::cmp::Ordering;
@@ -76,23 +74,27 @@ impl CollectionSchema {
             illegal_arg("No more than three properties may be used as a composite index.")?;
         }
 
-        let duplicate = self.indexes.iter().any(|i| {
-            let min_len = cmp::min(i.property_names.len(), property_names.len());
-            i.property_names[..min_len] == property_names[..min_len]
-        });
-        if duplicate {
-            illegal_arg("Index already exists.")?;
-        }
-
         let properties: Option<Vec<_>> = property_names
             .iter()
-            .map(|index_property| self.properties.iter().find(|p| p.name == *index_property))
+            .map(|index_property| {
+                self.properties
+                    .iter()
+                    .find(|p| p.name == *index_property)
+                    .map(|p| p.clone())
+            })
             .collect();
-
         if properties.is_none() {
             illegal_arg("Index property does not exist.")?;
         }
         let properties = properties.unwrap();
+
+        let duplicate = self.indexes.iter().any(|i| {
+            let min_len = cmp::min(i.properties.len(), properties.len());
+            i.properties[..min_len] == properties[..min_len]
+        });
+        if duplicate {
+            illegal_arg("Index already exists.")?;
+        }
 
         let illegal_data_type = properties
             .iter()
@@ -117,7 +119,7 @@ impl CollectionSchema {
         }
 
         self.indexes
-            .push(IndexSchema::new(property_names, unique, hash_value));
+            .push(IndexSchema::new(properties, unique, hash_value));
 
         Ok(())
     }
@@ -155,14 +157,10 @@ impl CollectionSchema {
             .iter()
             .map(|index| {
                 let properties = index
-                    .property_names
+                    .properties
                     .iter()
-                    .map(|name| {
-                        let pos = self
-                            .properties
-                            .iter()
-                            .position(|property| &property.name == name)
-                            .unwrap();
+                    .map(|property| {
+                        let pos = self.properties.iter().position(|p| property == p).unwrap();
                         properties.get(pos).unwrap()
                     })
                     .cloned()
@@ -183,82 +181,26 @@ impl CollectionSchema {
             .collect()
     }
 
-    pub(super) fn update_with_existing_collection(
+    pub(super) fn update_with_existing_collections<F>(
         &mut self,
         existing_collections: &[CollectionSchema],
-        used_ids: &mut HashSet<u16>,
-    ) {
-        if let Some(existing_collection) = existing_collections.iter().find(|c| c.name == self.name)
-        {
-            let properties = &self.properties;
-
-            for index in &mut self.indexes {
-                let existing_index = existing_collection.indexes.iter().find(|i| &index == i);
-                if let Some(existing_index) = existing_index {
-                    let can_reuse_index = !index.property_names.iter().any(|property_name| {
-                        let property = properties
-                            .iter()
-                            .find(|f| &f.name == property_name)
-                            .unwrap();
-                        let existing_property = existing_collection
-                            .properties
-                            .iter()
-                            .find(|f| &f.name == property_name)
-                            .unwrap();
-                        property.data_type != existing_property.data_type
-                    });
-
-                    if can_reuse_index {
-                        index.id = existing_index.id;
-                    }
-                }
-            }
-
-            if self.properties == existing_collection.properties
-                && self.indexes == existing_collection.indexes
-            {
-                self.id = existing_collection.id;
-            }
-        }
-
-        if self.id.is_none() {
-            self.id = Some(Self::find_id(used_ids));
-        }
+        get_id: &mut F,
+    ) where
+        F: FnMut() -> u16,
+    {
+        let existing_collection = existing_collections.iter().find(|c| c.name == self.name);
+        let existing_indexes: &[IndexSchema] = existing_collection.map_or(&[], |e| &e.indexes);
         for index in &mut self.indexes {
-            if index.id.is_none() {
-                index.id = Some(Self::find_id(used_ids));
-            }
+            index.update_with_existing_indexes(existing_indexes, get_id);
         }
-    }
-
-    fn find_id(used_ids: &mut HashSet<u16>) -> u16 {
-        loop {
-            let id = random();
-            if used_ids.insert(id) {
-                return id;
-            }
-        }
-    }
-
-    pub(super) fn collect_ids(&self, ids: &mut HashSet<u16>) {
-        if let Some(id) = self.id {
-            ids.insert(id);
-        }
-        for index in &self.indexes {
-            if let Some(id) = index.id {
-                assert!(
-                    ids.insert(id),
-                    "Something is wrong, schema contains duplicate id."
-                );
-            }
-        }
+        let id = existing_collection.map_or_else(get_id, |e| e.id.unwrap());
+        self.id = Some(id);
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::lmdb::db::Db;
 
     #[test]
     fn test_add_property_empty_name() {
@@ -366,8 +308,8 @@ mod tests {
     #[test]
     fn test_properties_have_correct_offset() {
         fn get_offsets(mut schema: CollectionSchema) -> Vec<usize> {
-            let mut ids = HashSet::new();
-            schema.update_with_existing_collection(&[], &mut ids);
+            let mut get_id = || 1;
+            schema.update_with_existing_collections(&[], &mut get_id);
             let col = schema.get_isar_collection(DataDbs::debug_new());
             let mut offsets = vec![];
             for i in 0..schema.properties.len() {
@@ -396,4 +338,6 @@ mod tests {
             .unwrap();
         assert_eq!(get_offsets(col), vec![2, 10, 18]);
     }
+
+    fn test_correct_properties() {}
 }
