@@ -1,5 +1,6 @@
-use crate::collection::IsarCollection;
-use crate::object::object_id::ObjectId;
+use crate::error::Result;
+use crate::{collection::IsarCollection, query::query::Query};
+use crate::{lmdb::txn::Txn, object::object_id::ObjectId};
 use std::{ptr, slice};
 
 #[repr(C)]
@@ -54,40 +55,27 @@ impl RawObject {
     }
 }
 
-/*#[repr(C)]
-pub struct ObjectSet {
+#[repr(C)]
+pub struct RawObjectSet {
     objects: *mut RawObject,
     length: u32,
 }
 
-impl ObjectSet {
-    pub fn new(mut objects: Vec<RawObject>) -> Self {
+impl RawObjectSet {
+    pub fn fill_from_query(&mut self, query: &Query, txn: &Txn) -> Result<()> {
+        let mut objects = vec![];
+        query.find_all(txn, |oid, object| {
+            objects.push(RawObject::new(*oid, object));
+            true
+        })?;
+
         objects.shrink_to_fit();
-        let objects_ptr = objects.as_mut_ptr();
-        ObjectSet {
-            objects: objects_ptr,
-            length: objects.len() as u32,
-        }
+        self.objects = objects.as_mut_ptr();
+        self.length = objects.len() as u32;
+        Ok(())
     }
-
-    /*pub fn get_object(&self, index: u32) -> Option<(u64, &[u8])> {
-        if self.length > index {
-            let object = unsafe { &*self.objects.offset(index as isize) };
-            let slice = object.object_as_slice();
-            Some((object.oid, slice))
-        } else {
-            None
-        }
-    }
-
-    pub fn set_oid(&self, index: u32, oid: u64) {
-        if self.length > index {
-            let object = unsafe { &mut *self.objects.offset(index as isize) };
-            object.oid = oid;
-        }
-    }*/
 
     pub fn length(&self) -> u32 {
         self.length
     }
-}*/
+}

@@ -1,8 +1,10 @@
-use crate::collection::IsarCollection;
 use crate::instance::IsarInstance;
 use crate::query::query::Query;
 use crate::query::query_builder::QueryBuilder;
 use crate::query::where_clause::WhereClause;
+use crate::{collection::IsarCollection, lmdb::txn::Txn};
+
+use super::raw_object_set::RawObjectSet;
 
 #[no_mangle]
 pub extern "C" fn isar_qb_create(
@@ -28,14 +30,13 @@ pub unsafe extern "C" fn isar_qb_build(builder: *mut QueryBuilder) -> *mut Query
     Box::into_raw(Box::new(query))
 }
 
-/*#[no_mangle]
-pub unsafe extern "C" fn isar_q_run(query: Option<&Query>, txn: Option<&Txn>) {
-    /*let objects = vec![];
-    query
-        .unwrap()
-        .find_all(&txn.unwrap(), |key, val| {
-            //objects.push(RawObject::new())
-            true
-        })
-        .unwrap();*/
-}*/
+#[no_mangle]
+pub unsafe extern "C" fn isar_q_find_all(
+    query: &Query,
+    txn: &Txn,
+    result: &mut RawObjectSet,
+) -> u8 {
+    isar_try! {
+        result.fill_from_query(query, txn)?;
+    }
+}

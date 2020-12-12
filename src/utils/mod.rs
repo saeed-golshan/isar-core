@@ -29,7 +29,7 @@ pub fn to_c_str(str: &str) -> Result<CString> {
 }
 
 pub fn seconds_since_epoch() -> u64 {
-    OffsetDateTime::now_utc().timestamp() as u64
+    OffsetDateTime::now_utc().unix_timestamp() as u64
 }
 
 #[macro_export]

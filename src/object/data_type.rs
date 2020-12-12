@@ -6,23 +6,29 @@ use serde_repr::{Deserialize_repr, Serialize_repr};
 )]
 #[repr(u8)]
 pub enum DataType {
+    // Alignment 1
     Bool = 0,
 
+    // Alignment 4
     Int = 1,
     Float = 2,
 
+    // Alignment 8
     Long = 3,
     Double = 4,
 
+    // Element Alignment 1
     String = 5,
     Bytes = 6,
     BoolList = 7,
     StringList = 8,
     BytesList = 9,
 
+    // Element Alignment 4
     IntList = 10,
     FloatList = 11,
 
+    // Element Alignment 8
     LongList = 12,
     DoubleList = 13,
 }

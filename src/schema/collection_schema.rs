@@ -339,5 +339,58 @@ mod tests {
         assert_eq!(get_offsets(col), vec![2, 10, 18]);
     }
 
-    fn test_correct_properties() {}
+    #[test]
+    fn update_with_no_existing_collection() {
+        let mut col = CollectionSchema::new("col");
+        col.add_property("bool", DataType::Bool).unwrap();
+        col.add_property("int", DataType::Int).unwrap();
+        col.add_index(&["bool"], true, false).unwrap();
+        col.add_index(&["int"], true, false).unwrap();
+
+        let mut counter = 0;
+        let mut get_id = || {
+            counter += 1;
+            counter
+        };
+        col.update_with_existing_collections(&[], &mut get_id);
+
+        assert_eq!(col.indexes[0].id, Some(1));
+        assert_eq!(col.indexes[1].id, Some(2));
+        assert_eq!(col.id, Some(3));
+    }
+
+    #[test]
+    fn update_with_existing_collection() {
+        let mut counter = 0;
+        let mut get_id = || {
+            counter += 1;
+            counter
+        };
+
+        let mut col1 = CollectionSchema::new("col");
+        col1.add_property("bool", DataType::Bool).unwrap();
+        col1.add_property("int", DataType::Int).unwrap();
+        col1.add_index(&["bool"], true, false).unwrap();
+        col1.add_index(&["int"], true, false).unwrap();
+
+        col1.update_with_existing_collections(&[], &mut get_id);
+        assert_eq!(col1.indexes[0].id, Some(1));
+        assert_eq!(col1.indexes[1].id, Some(2));
+        assert_eq!(col1.id, Some(3));
+
+        let mut col2 = CollectionSchema::new("col");
+        col2.add_property("bool", DataType::Bool).unwrap();
+        col2.add_property("int", DataType::Int).unwrap();
+        col2.add_index(&["bool"], true, false).unwrap();
+        col2.add_index(&["int", "bool"], true, false).unwrap();
+
+        col2.update_with_existing_collections(&[col1], &mut get_id);
+        assert_eq!(col2.indexes[0].id, Some(1));
+        assert_eq!(col2.indexes[1].id, Some(4));
+        assert_eq!(col2.id, Some(3));
+
+        let mut col3 = CollectionSchema::new("col3");
+        col3.update_with_existing_collections(&[col2], &mut get_id);
+        assert_eq!(col3.id, Some(5));
+    }
 }
