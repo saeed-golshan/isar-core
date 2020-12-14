@@ -1,0 +1,43 @@
+name: Build release binaries
+
+on:
+  push:
+    tags:
+      - '*'
+
+jobs:
+  build_and_upload:
+    name: Build and upload
+    strategy:
+      matrix:
+        include:
+          - os: macos-latest
+            artifact_name: libisar_android.so
+            script: build_android.sh
+          - os: macos-latest
+            artifact_name: libisar_androidx86.so
+            script: build_android.sh x86
+          - os: ubuntu-latest
+            artifact_name: libisar_linux.so
+            script: build_desktop.sh
+          - os: macos-latest
+            artifact_name: libisar_macos.dylib
+            script: build_desktop.sh
+          - os: windows-latest
+            artifact_name: isar_windows.dll
+            script: build_desktop.sh
+    runs-on: ${{ matrix.os }}
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+      with:
+        submodules: true
+    - name: Build
+      run: bash tools/${{ matrix.script }}
+    - name: Upload binary
+      uses: svenstaro/upload-release-action@v1-release
+      with:
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
+        file: ${{ matrix.artifact_name }}
+        asset_name: ${{ matrix.artifact_name }}
+        tag: ${{ github.ref }}
