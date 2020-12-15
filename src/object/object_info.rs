@@ -66,7 +66,7 @@ mod tests {
     fn test_calculate_static_size() {
         let properties1 = vec![
             Property::new(DataType::Bool, 0),
-            Property::new(DataType::Int, 1),
+            Property::new(DataType::Int, 2),
         ];
         let properties2 = vec![
             Property::new(DataType::Bool, 0),
@@ -75,8 +75,8 @@ mod tests {
             Property::new(DataType::Double, 9),
         ];
 
-        assert_eq!(ObjectInfo::calculate_static_size(&properties1), 9);
-        assert_eq!(ObjectInfo::calculate_static_size(&properties2), 25);
+        assert_eq!(ObjectInfo::calculate_static_size(&properties1), 6);
+        assert_eq!(ObjectInfo::calculate_static_size(&properties2), 17);
     }
 
     #[test]

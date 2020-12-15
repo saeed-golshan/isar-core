@@ -53,6 +53,13 @@ impl RawObject {
             None
         }
     }
+
+    pub fn clear(&mut self) {
+        self.oid_time = 0;
+        self.oid_rand_counter = 0;
+        self.data = ptr::null();
+        self.data_length = 0;
+    }
 }
 
 #[repr(C)]
@@ -78,4 +85,9 @@ impl RawObjectSet {
     pub fn length(&self) -> u32 {
         self.length
     }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn isar_free_obj_data(object: &mut RawObject) {
+    object.clear();
 }

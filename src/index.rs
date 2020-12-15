@@ -226,32 +226,32 @@ mod tests {
     #[test]
     fn test_create_for_object() {
         macro_rules! test_index (
-            ($data_type:ident , $data:expr, $bytes:expr, $to_index:ident) => {
+            ($data_type:ident , $data:expr, $write:ident) => {
                 isar!(isar, col => col!(field => $data_type; ind!(field)));
                 let txn = isar.begin_txn(true).unwrap();
-                let oid = col.put(&txn, None, $bytes).unwrap();
+
+                let mut builder = col.get_object_builder();
+                builder.$write($data);
+                let obj = builder.finish();
+
+                let oid = col.put(&txn, None, &obj).unwrap();
                 let index = col.debug_get_index(0);
+
                 assert_eq!(
                     index.debug_dump(&txn),
-                    set![(Index::$to_index($data), oid.as_bytes().to_vec())]
+                    set![(index.create_key(&obj), oid.as_bytes().to_vec())]
                 )
             };
         );
 
-        test_index!(Int, 123456i32, &123456i32.to_le_bytes(), get_int_key);
-        test_index!(Long, 123456i64, &123456i64.to_le_bytes(), get_long_key);
-        test_index!(Float, 123.456f32, &123.456f32.to_le_bytes(), get_float_key);
-        test_index!(
-            Double,
-            123.456f64,
-            &123.456f64.to_le_bytes(),
-            get_double_key
-        );
-        test_index!(Bool, Some(false), &[0], get_bool_key);
-        test_index!(Bool, Some(true), &[1], get_bool_key);
-        test_index!(Bool, None, &[2], get_bool_key);
-
-        //test_index!(String, Some(b"hello"), b"hello", get_string_value_key);
+        test_index!(Bool, Some(false), write_bool);
+        test_index!(Bool, Some(true), write_bool);
+        test_index!(Bool, None, write_bool);
+        test_index!(Int, 123456i32, write_int);
+        test_index!(Float, 123.456f32, write_float);
+        test_index!(Long, 123456i64, write_long);
+        test_index!(Double, 123.456f64, write_double);
+        test_index!(String, Some("hello"), write_string);
     }
 
     #[test]

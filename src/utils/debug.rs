@@ -152,3 +152,26 @@ pub fn align(bytes: &[u8]) -> Vec<u8> {
     vec.extend_from_slice(bytes);
     vec
 }
+
+pub fn pad(data: &[u8], count: usize) -> Vec<u8> {
+    let mut vec = data.to_vec();
+    vec.extend((0..count).into_iter().map(|_| 0));
+    vec
+}
+
+pub trait SlicePad {
+    type Item;
+
+    fn pad(&self, pre: usize, post: usize) -> Vec<Self::Item>;
+}
+
+impl SlicePad for [u8] {
+    type Item = u8;
+
+    fn pad(&self, pre: usize, post: usize) -> Vec<u8> {
+        let mut vec: Vec<u8> = (0..pre).into_iter().map(|_| 0).collect();
+        vec.extend_from_slice(&self);
+        vec.extend((0..post).into_iter().map(|_| 0));
+        vec
+    }
+}

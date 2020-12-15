@@ -127,7 +127,7 @@ impl<'a> ObjectBuilder<'a> {
     pub fn finish(self) -> Vec<u8> {
         let mut object = self.object;
         let oid_body_bytes = ObjectId::get_size() + object.len();
-        let padding = vec![0; 8 - oid_body_bytes % 8];
+        let padding = vec![0; (8 - oid_body_bytes % 8) % 8];
         object.extend_from_slice(&padding);
         object
     }
@@ -157,70 +157,100 @@ impl<'a> ObjectBuilder<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::object::object_builder::ObjectBuilder;
-    use crate::object::object_info::ObjectInfo;
     use crate::object::property::Property;
+    use crate::utils::debug::SlicePad;
+    use crate::{col, isar};
 
     macro_rules! builder {
-        ($var:ident, $($property:expr), *) => {
-            let info = ObjectInfo::new(vec![$($property,)*]);
-            let mut $var = ObjectBuilder::new(&info);
+        ($var:ident, $type:ident) => {
+            isar!(isar, col => col!("int" => $type));
+            let mut $var = col.get_object_builder();
         };
     }
 
     #[test]
     pub fn test_write_int() {
-        builder!(b, Property::new(DataType::Int, 0));
-
+        builder!(b, Int);
         b.write_int(123);
-        assert_eq!(b.finish(), 123i64.to_le_bytes())
+        assert_eq!(b.finish(), 123i32.to_le_bytes().pad(2, 4))
     }
 
     #[test]
     #[should_panic]
     pub fn test_write_int_wrong_type() {
-        builder!(b, Property::new(DataType::Double, 0));
+        builder!(b, Long);
         b.write_int(123);
     }
 
     #[test]
-    pub fn test_write_double() {
-        builder!(b, Property::new(DataType::Double, 0));
-        b.write_double(123.0);
-        assert_eq!(b.finish(), 123f64.to_le_bytes());
+    pub fn test_write_float() {
+        builder!(b, Float);
+        b.write_float(123.123);
+        assert_eq!(b.finish(), 123.123f32.to_le_bytes().pad(2, 4));
 
-        builder!(b, Property::new(DataType::Double, 0));
+        builder!(b, Float);
+        b.write_float(f32::NAN);
+        assert_eq!(b.finish(), f32::NAN.to_le_bytes().pad(2, 4));
+    }
+
+    #[test]
+    #[should_panic]
+    pub fn test_write_float_wrong_type() {
+        builder!(b, Double);
+        b.write_float(123.123);
+    }
+
+    #[test]
+    pub fn test_write_long() {
+        builder!(b, Long);
+        b.write_long(123123);
+        assert_eq!(b.finish(), 123123i64.to_le_bytes().pad(2, 0))
+    }
+
+    #[test]
+    #[should_panic]
+    pub fn test_write_long_wrong_type() {
+        builder!(b, Int);
+        b.write_long(123123);
+    }
+
+    #[test]
+    pub fn test_write_double() {
+        builder!(b, Double);
+        b.write_double(123.123);
+        assert_eq!(b.finish(), 123.123f64.to_le_bytes().pad(2, 0));
+
+        builder!(b, Double);
         b.write_double(f64::NAN);
-        assert_eq!(b.finish(), f64::NAN.to_le_bytes());
+        assert_eq!(b.finish(), f64::NAN.to_le_bytes().pad(2, 0));
     }
 
     #[test]
     #[should_panic]
     pub fn test_write_double_wrong_type() {
-        builder!(b, Property::new(DataType::Bool, 0));
+        builder!(b, Float);
         b.write_double(123.0);
     }
 
     #[test]
     pub fn test_write_bool() {
-        builder!(b, Property::new(DataType::Bool, 0));
+        builder!(b, Bool);
         b.write_bool(None);
-        assert_eq!(b.finish(), &[Property::NULL_BOOL]);
+        assert_eq!(b.finish(), &[Property::NULL_BOOL, 0]);
 
-        builder!(b, Property::new(DataType::Bool, 0));
+        builder!(b, Bool);
         b.write_bool(Some(false));
-        assert_eq!(b.finish(), &[Property::FALSE_BOOL]);
+        assert_eq!(b.finish(), &[Property::FALSE_BOOL, 0]);
 
-        builder!(b, Property::new(DataType::Bool, 0));
+        builder!(b, Bool);
         b.write_bool(Some(true));
-        assert_eq!(b.finish(), &[Property::TRUE_BOOL]);
+        assert_eq!(b.finish(), &[Property::TRUE_BOOL, 0]);
     }
 
     #[test]
     #[should_panic]
     pub fn test_write_bool_wrong_type() {
-        builder!(b, Property::new(DataType::String, 0));
+        builder!(b, String);
         b.write_bool(Some(true));
     }
 
