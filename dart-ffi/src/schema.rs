@@ -12,18 +12,7 @@ pub extern "C" fn isar_schema_create() -> *mut Schema {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn isar_schema_add_collection(
-    schema: Option<&mut Schema>,
-    collection: *mut CollectionSchema,
-) -> u8 {
-    isar_try! {
-        let collection = Box::from_raw(collection);
-        schema.unwrap().add_collection(*collection)?;
-    }
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn isar_schema_collection_create(
+pub unsafe extern "C" fn isar_schema_create_collection(
     collection: *mut *const CollectionSchema,
     name: *const c_char,
 ) -> u8 {
@@ -36,7 +25,18 @@ pub unsafe extern "C" fn isar_schema_collection_create(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn isar_schema_collection_add_property(
+pub unsafe extern "C" fn isar_schema_add_collection(
+    schema: Option<&mut Schema>,
+    collection: *mut CollectionSchema,
+) -> u8 {
+    isar_try! {
+        let collection = Box::from_raw(collection);
+        schema.unwrap().add_collection(*collection)?;
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn isar_schema_add_property(
     collection: Option<&mut CollectionSchema>,
     name: *const c_char,
     data_type: u8,
@@ -49,7 +49,7 @@ pub unsafe extern "C" fn isar_schema_collection_add_property(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn isar_schema_collection_add_index(
+pub unsafe extern "C" fn isar_schema_add_index(
     collection: Option<&mut CollectionSchema>,
     property_names: *const *const c_char,
     property_names_length: u32,
