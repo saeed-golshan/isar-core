@@ -1,8 +1,8 @@
-use crate::collection::IsarCollection;
-use crate::error::illegal_arg;
-use crate::object::object_id::ObjectId;
-use crate::query::where_clause::WhereClause;
-use crate::utils::from_c_str;
+use crate::from_c_str;
+use isar_core::collection::IsarCollection;
+use isar_core::error::illegal_arg;
+use isar_core::object::object_id::ObjectId;
+use isar_core::query::where_clause::WhereClause;
 use std::os::raw::c_char;
 
 #[no_mangle]

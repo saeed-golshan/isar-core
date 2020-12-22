@@ -3,6 +3,7 @@ use crate::index::{Index, IndexType};
 use crate::lmdb::cursor::{Cursor, CursorIterator};
 use crate::lmdb::KeyVal;
 use crate::object::object_id::ObjectId;
+use crate::object::property::Property;
 use std::convert::TryInto;
 
 #[derive(Clone)]
@@ -132,7 +133,12 @@ impl WhereClause {
     }
 
     pub fn add_bool(&mut self, value: Option<bool>) {
-        let bytes = &Index::get_bool_key(value);
+        let bool = match value {
+            Some(true) => Property::TRUE_BOOL,
+            Some(false) => Property::FALSE_BOOL,
+            None => Property::NULL_BOOL,
+        };
+        let bytes = &Index::get_bool_key(bool);
         self.lower_key.extend_from_slice(bytes);
         self.upper_key.extend_from_slice(bytes);
     }

@@ -1,10 +1,10 @@
-use crate::instance::IsarInstance;
-use crate::query::query::Query;
-use crate::query::query_builder::QueryBuilder;
-use crate::query::where_clause::WhereClause;
-use crate::{collection::IsarCollection, lmdb::txn::Txn};
-
 use super::raw_object_set::RawObjectSet;
+use isar_core::collection::IsarCollection;
+use isar_core::instance::IsarInstance;
+use isar_core::query::query::Query;
+use isar_core::query::query_builder::QueryBuilder;
+use isar_core::query::where_clause::WhereClause;
+use isar_core::txn::IsarTxn;
 
 #[no_mangle]
 pub extern "C" fn isar_qb_create(
@@ -33,7 +33,7 @@ pub unsafe extern "C" fn isar_qb_build(builder: *mut QueryBuilder) -> *mut Query
 #[no_mangle]
 pub unsafe extern "C" fn isar_q_find_all(
     query: &Query,
-    txn: &Txn,
+    txn: &IsarTxn,
     result: &mut RawObjectSet,
 ) -> u8 {
     isar_try! {

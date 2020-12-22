@@ -1,8 +1,8 @@
-use crate::collection::IsarCollection;
-use crate::error::illegal_arg;
-use crate::instance::IsarInstance;
-use crate::schema::Schema;
-use crate::utils::from_c_str;
+use crate::from_c_str;
+use isar_core::collection::IsarCollection;
+use isar_core::error::illegal_arg;
+use isar_core::instance::IsarInstance;
+use isar_core::schema::Schema;
 use std::os::raw::c_char;
 
 #[no_mangle]

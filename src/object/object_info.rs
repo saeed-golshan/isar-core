@@ -1,19 +1,19 @@
+use crate::object::data_type::DataType;
+use crate::object::object_id::ObjectId;
 use crate::object::property::Property;
 
+#[cfg_attr(test, derive(Clone))]
 pub(crate) struct ObjectInfo {
     pub properties: Vec<Property>,
     pub static_size: usize,
-    pub first_dynamic_property_index: Option<usize>,
 }
 
 impl ObjectInfo {
     pub fn new(properties: Vec<Property>) -> ObjectInfo {
         let static_size = Self::calculate_static_size(&properties);
-        let first_dynamic_property_index = Self::find_first_dynamic_property_index(&properties);
         ObjectInfo {
             properties,
             static_size,
-            first_dynamic_property_index,
         }
     }
 
@@ -22,39 +22,76 @@ impl ObjectInfo {
         last_property.offset + last_property.data_type.get_static_size()
     }
 
-    fn find_first_dynamic_property_index(properties: &[Property]) -> Option<usize> {
-        properties
-            .iter()
-            .enumerate()
-            .filter(|(_, property)| property.data_type.is_dynamic())
-            .map(|(i, _)| i)
-            .next()
-    }
-
-    /*pub fn verify_object(&self, object: &[u8]) -> bool {
-        if let Some(first_dynamic_index) = self.first_dynamic_property_index {
-            if object.len() < self.static_size {
+    pub fn verify_object(&self, object: &[u8]) -> bool {
+        eprintln!("{:?}", object);
+        let alignment = object.as_ref().as_ptr() as usize - ObjectId::get_size();
+        if alignment % 8 != 0 {
+            return false;
+        }
+        let check_padding = |index: usize, count: usize| -> bool {
+            if object.len() < index + count {
                 return false;
             }
-
-            let mut dynamic_offset = self.static_size;
-            for property in self.properties.iter().skip(first_dynamic_index) {
-                if !property.is_null(object) {
-                    let offset = property.get_data_offset(object);
-                    if offset != dynamic_offset {
-                        return false;
-                    }
-
-                    let length = property.get_length(object);
-                    dynamic_offset += length;
+            for padding_byte in &object[index..index + count] {
+                if *padding_byte != 0 {
+                    return false;
                 }
             }
+            true
+        };
 
-            object.len() == dynamic_offset
-        } else {
-            object.len() == self.static_size
+        if (ObjectId::get_size() + object.len()) % 8 != 0 {
+            return false;
         }
-    }*/
+
+        let mut static_offset = 0;
+        let mut dynamic_offset = self.static_size;
+        for property in &self.properties {
+            let required_padding = property.offset - static_offset;
+            if !check_padding(static_offset, required_padding) {
+                return false;
+            }
+            static_offset += required_padding;
+
+            if property.offset != static_offset {
+                return false;
+            }
+            static_offset += property.data_type.get_static_size();
+
+            if property.data_type.is_dynamic() && !property.is_null(object) {
+                let pos = property.get_dynamic_position(object).unwrap();
+                let alignment_wrong = (dynamic_offset + ObjectId::get_size())
+                    % property.data_type.get_element_size()
+                    != 0;
+                if pos.offset as usize != dynamic_offset || alignment_wrong {
+                    return false;
+                }
+
+                if property.data_type != DataType::StringList
+                    && property.data_type != DataType::BytesList
+                {
+                    dynamic_offset += pos.length as usize * property.data_type.get_element_size();
+                } else {
+                    let list_positions = property.get_dynamic_positions(object).unwrap();
+                    let last_with_length = list_positions.iter().rev().find(|p| p.length != 0);
+                    if let Some(last_pos) = last_with_length {
+                        dynamic_offset += last_pos.length as usize;
+                    }
+                }
+            }
+        }
+
+        if static_offset != self.static_size {
+            return false;
+        }
+
+        let required_padding = (8 - (dynamic_offset + ObjectId::get_size()) % 8) % 8;
+        if !check_padding(dynamic_offset, required_padding as usize) {
+            return false;
+        }
+
+        dynamic_offset + required_padding == object.len()
+    }
 }
 #[cfg(test)]
 mod tests {
@@ -80,89 +117,48 @@ mod tests {
     }
 
     #[test]
-    fn test_find_first_dynamic_property_index() {
-        let static_properties = vec![
-            Property::new(DataType::Bool, 0),
-            Property::new(DataType::Int, 1),
-        ];
-        let mixed_properties = vec![
-            Property::new(DataType::Bool, 0),
-            Property::new(DataType::String, 1),
-        ];
-        let dynamic_properties = vec![Property::new(DataType::String, 0)];
-
-        assert_eq!(
-            ObjectInfo::find_first_dynamic_property_index(&static_properties),
-            None
-        );
-        assert_eq!(
-            ObjectInfo::find_first_dynamic_property_index(&mixed_properties),
-            Some(1)
-        );
-        assert_eq!(
-            ObjectInfo::find_first_dynamic_property_index(&dynamic_properties),
-            Some(0)
-        );
-    }
-
-    /*
-    #[test]
     fn test_verify_object() {
-        let static_properties = vec![Property::new(DataType::Bool, 0), Property::new(DataType::Int, 1)];
-        let string_property = vec![Property::new(DataType::String, 0)];
+        /*let oi = ObjectInfo::new(vec![Property::new(DataType::Bool, 0)]);
+        assert!(oi.verify_object(&[1, 0])); // correct end padding
+        assert!(!oi.verify_object(&[1])); // wrong end padding
+        assert!(!oi.verify_object(&[1, 6])); // wrong end padding
 
-        let mixed_properties = vec![
+        let oi = ObjectInfo::new(vec![Property::new(DataType::Bool, 1)]);
+        assert!(oi.verify_object(&[0, 1])); // correct start padding
+        assert!(!oi.verify_object(&[5, 1])); // wrong start padding
+
+        let oi = ObjectInfo::new(vec![
             Property::new(DataType::Bool, 0),
-            Property::new(DataType::String, 1),
-            Property::new(DataType::Bytes, 9),
-        ];
+            Property::new(DataType::Int, 2),
+        ]);
+        assert!(oi.verify_object(&[1, 0, 1, 0, 0, 0, 0, 0, 0, 0])); // correct length
+        assert!(!oi.verify_object(&[1, 0])); // missing property
+        assert!(!oi.verify_object(&[1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]));
+        // too long
 
-        fn col(properties: &[Property]) -> IsarCollection {
-            IsarCollection::new(0, properties.to_vec(), vec![], vec![], DUMMY_DB)
-        }
+        let oi = ObjectInfo::new(vec![Property::new(DataType::BoolList, 2)]);
+        assert!(oi.verify_object(&[0, 0, 0, 0, 0, 0, 0, 0, 0, 0])); // null list
+        assert!(oi.verify_object(&[0, 0, 10, 0, 0, 0, 0, 0, 0, 0])); // empty list
+        assert!(!oi.verify_object(&[0, 0, 7, 0, 0, 0, 0, 0, 0, 0])); // offset in static area
+        assert!(!oi.verify_object(&[0, 0, 11, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0]));
+        // offset leaves hole
+        assert!(!oi.verify_object(&[0, 0, 10, 0, 0, 0, 9, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1]));
+        // missing data
 
-        assert_eq!(col(&static_properties).verify_object(&[]), false);
-        assert_eq!(col(&static_properties).verify_object(&[1, 4]), false);
-        assert_eq!(col(&static_properties).verify_object(&[0; 9]), true);
-        assert_eq!(col(&static_properties).verify_object(&[0; 10]), false);
+        let oi = ObjectInfo::new(vec![Property::new(DataType::IntList, 2)]);
+        assert!(oi.verify_object(&[0, 0, 10, 0, 0, 0, 2, 0, 0, 0, 20, 0, 0, 0, 21, 0, 0, 0]));
+        // correct list
 
-        assert_eq!(col(&string_property).verify_object(&[]), false);
-        assert_eq!(col(&string_property).verify_object(&[0; 8]), true);
-        assert_eq!(col(&string_property).verify_object(&[0; 9]), false);
-        assert_eq!(
-            col(&string_property).verify_object(&[8, 0, 0, 0, 3, 0, 0, 0, 60, 61, 62]),
-            true
-        );
-        assert_eq!(
-            col(&string_property).verify_object(&[1, 0, 0, 0, 3, 0, 0, 0, 60, 61, 62]),
-            false
-        );
-        assert_eq!(
-            col(&string_property).verify_object(&[9, 0, 0, 0, 1, 0, 0, 0, 60, 61]),
-            false
-        );
-
-        assert_eq!(col(&mixed_properties).verify_object(&[]), false);
-        assert_eq!(col(&mixed_properties).verify_object(&[0; 17]), true);
-        assert_eq!(col(&mixed_properties).verify_object(&[0; 18]), false);
-        assert_eq!(
-            col(&mixed_properties).verify_object(&[
-                2, 17, 0, 0, 0, 1, 0, 0, 0, 18, 0, 0, 0, 3, 0, 0, 0, 63, 60, 61, 62
-            ]),
-            true
-        );
-        assert_eq!(
-            col(&mixed_properties).verify_object(&[
-                2, 17, 0, 0, 0, 1, 0, 0, 0, 18, 0, 0, 0, 3, 0, 0, 0, 63, 60, 61, 62, 63
-            ]),
-            false
-        );
-        assert_eq!(
-            col(&mixed_properties).verify_object(&[
-                2, 17, 0, 0, 0, 1, 0, 0, 0, 17, 0, 0, 0, 3, 0, 0, 0, 63, 60, 61, 62
-            ]),
-            false
-        );
+        let oi = ObjectInfo::new(vec![Property::new(DataType::StringList, 2)]);
+        assert!(oi.verify_object(&[0, 0, 0, 0, 0, 0, 0, 0, 0, 0])); // null string list
+        assert!(oi.verify_object(&[0, 0, 10, 0, 0, 0, 0, 0, 0, 0])); // empty string list
+        assert!(oi.verify_object(&[0, 0, 10, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]));
+        // string list with null entry
+        assert!(!oi.verify_object(&[0, 0, 7, 0, 0, 0, 0, 0, 0, 0])); // offset in static area
+        assert!(oi.verify_object(&[0, 0, 10, 0, 0, 0, 1, 0, 0, 0, 12, 0, 0, 0, 0, 0, 0, 0])); // offset in data pos area
+        assert!(oi.verify_object(&[
+            0, 0, 10, 0, 0, 0, 2, 0, 0, 0, 12, 0, 0, 0, 1, 0, 0, 0, 12, 0, 0, 0, 2, 0, 0, 0, 44, 0,
+            45, 46
+        ])); // offset leaves hole*/
     }
-     */
 }

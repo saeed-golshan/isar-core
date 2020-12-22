@@ -1,0 +1,15 @@
+[package]
+name = "isar-core-dart-ffi"
+version = "0.1.0"
+authors = ["Simon Leier <simonleier@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+isar-core = { path = "../" }
+
+[lib]
+crate-type=["cdylib"]
+
+[profile.release]
+lto = true
+codegen-units = 1

@@ -3,7 +3,9 @@
 use crate::collection::IsarCollection;
 use crate::lmdb::db::Db;
 use crate::lmdb::txn::Txn;
+use crate::object::object_builder::ObjectBuilderResult;
 use crate::object::object_id::ObjectId;
+use crate::txn::IsarTxn;
 use hashbrown::{HashMap, HashSet};
 use std::hash::Hash;
 use std::mem;
@@ -90,13 +92,13 @@ macro_rules! ind (
 
 pub fn fill_db<'a>(
     col: &IsarCollection,
-    txn: &'a Txn,
-    data: &'a [(Option<ObjectId>, Vec<u8>)],
+    txn: &'a IsarTxn,
+    data: &'a [(Option<ObjectId>, ObjectBuilderResult)],
 ) -> HashMap<Vec<u8>, Vec<u8>> {
     let mut result = HashMap::new();
     for (oid, object) in data {
-        let oid = col.put(&txn, *oid, object).unwrap();
-        result.insert(oid.as_bytes().to_vec(), object.to_vec());
+        let oid = col.put(&txn, *oid, object.as_bytes()).unwrap();
+        result.insert(oid.as_bytes().to_vec(), object.as_bytes().to_vec());
     }
     result
 }
@@ -105,9 +107,9 @@ pub fn ref_map<K: Eq + Hash, V>(map: &HashMap<K, V>) -> HashMap<&K, &V> {
     map.iter().map(|(k, v)| (k, v)).collect()
 }
 
-pub fn dump_db(db: Db, txn: &Txn, prefix: Option<&[u8]>) -> HashSet<(Vec<u8>, Vec<u8>)> {
+pub fn dump_db(db: Db, txn: &IsarTxn, prefix: Option<&[u8]>) -> HashSet<(Vec<u8>, Vec<u8>)> {
     let mut set = HashSet::new();
-    let mut cursor = db.cursor(&txn).unwrap();
+    let mut cursor = db.cursor(&txn.txn).unwrap();
 
     let result = if let Some(prefix) = prefix {
         cursor.move_to_gte(prefix).unwrap()

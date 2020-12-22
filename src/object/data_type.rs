@@ -21,8 +21,6 @@ pub enum DataType {
     String = 5,
     Bytes = 6,
     BoolList = 7,
-    StringList = 8,
-    BytesList = 9,
 
     // Element Alignment 4
     IntList = 10,
@@ -31,6 +29,11 @@ pub enum DataType {
     // Element Alignment 8
     LongList = 12,
     DoubleList = 13,
+
+    // Offset List alignment 8
+    // Element Alignment 1
+    StringList = 8,
+    BytesList = 9,
 }
 
 impl DataType {

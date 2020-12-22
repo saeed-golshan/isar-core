@@ -3,30 +3,8 @@
 #[macro_use]
 pub mod debug;
 
-use crate::error::{IsarError, Result};
-use std::ffi::{CStr, CString};
-use std::os::raw::c_char;
+use core::mem;
 use time::OffsetDateTime;
-
-pub unsafe fn from_c_str<'a>(str: *const c_char) -> Result<&'a str> {
-    match CStr::from_ptr(str).to_str() {
-        Ok(str) => Ok(str),
-        Err(e) => Err(IsarError::IllegalArgument {
-            source: Some(Box::new(e)),
-            message: "The provided String is not valid.".to_string(),
-        }),
-    }
-}
-
-pub fn to_c_str(str: &str) -> Result<CString> {
-    match CString::new(str.as_bytes()) {
-        Ok(str) => Ok(str),
-        Err(e) => Err(IsarError::IllegalArgument {
-            source: Some(Box::new(e)),
-            message: "The provided String is not valid.".to_string(),
-        }),
-    }
-}
 
 pub fn seconds_since_epoch() -> u64 {
     OffsetDateTime::now_utc().unix_timestamp() as u64
@@ -53,3 +31,17 @@ macro_rules! map_option (
         }
     };
 );
+
+#[repr(C, align(8))]
+struct Align8([u8; 8]);
+
+pub fn aligned_vec(size: usize) -> Vec<u8> {
+    assert_eq!(size % 8, 0);
+    let n_units = size / mem::size_of::<Align8>();
+
+    let mut aligned: Vec<Align8> = Vec::with_capacity(n_units);
+    let ptr = aligned.as_mut_ptr();
+    mem::forget(aligned);
+
+    unsafe { Vec::from_raw_parts(ptr as *mut u8, 0, size) }
+}

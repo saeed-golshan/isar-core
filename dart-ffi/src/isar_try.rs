@@ -2,7 +2,7 @@
 macro_rules! isar_try {
     { $($token:tt)* } => {{
         #[allow(unused_mut)] {
-            let mut l = || -> crate::error::Result<()> {
+            let mut l = || -> isar_core::error::Result<()> {
                 $($token)*
                 Ok(())
             };

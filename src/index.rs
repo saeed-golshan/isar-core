@@ -7,6 +7,7 @@ use crate::query::where_clause::WhereClause;
 use std::mem::transmute;
 use wyhash::wyhash;
 
+use crate::txn::IsarTxn;
 #[cfg(test)]
 use {crate::utils::debug::dump_db, hashbrown::HashSet};
 
@@ -164,11 +165,11 @@ impl Index {
         }
     }
 
-    pub fn get_bool_key(value: Option<bool>) -> Vec<u8> {
+    pub fn get_bool_key(value: u8) -> Vec<u8> {
         match value {
-            None => vec![0],
-            Some(false) => vec![1],
-            Some(true) => vec![2],
+            Property::FALSE_BOOL => vec![1],
+            Property::TRUE_BOOL => vec![2],
+            _ => vec![0],
         }
     }
 
@@ -199,7 +200,7 @@ impl Index {
     }
 
     #[cfg(test)]
-    pub fn debug_dump(&self, txn: &Txn) -> HashSet<(Vec<u8>, Vec<u8>)> {
+    pub fn debug_dump(&self, txn: &IsarTxn) -> HashSet<(Vec<u8>, Vec<u8>)> {
         dump_db(self.db, txn, Some(&self.prefix))
             .into_iter()
             .map(|(key, val)| (key.to_vec(), val.to_vec()))
@@ -234,12 +235,12 @@ mod tests {
                 builder.$write($data);
                 let obj = builder.finish();
 
-                let oid = col.put(&txn, None, &obj).unwrap();
+                let oid = col.put(&txn, None, obj.as_bytes()).unwrap();
                 let index = col.debug_get_index(0);
 
                 assert_eq!(
                     index.debug_dump(&txn),
-                    set![(index.create_key(&obj), oid.as_bytes().to_vec())]
+                    set![(index.create_key(obj.as_bytes()), oid.as_bytes().to_vec())]
                 )
             };
         );
@@ -266,9 +267,9 @@ mod tests {
         o.write_int(5);
         let bytes = o.finish();
 
-        col.put(&txn, None, &bytes).unwrap();
+        col.put(&txn, None, bytes.as_bytes()).unwrap();
 
-        let result = col.put(&txn, None, &bytes);
+        let result = col.put(&txn, None, bytes.as_bytes());
         match result {
             Err(IsarError::UniqueViolated {
                 source: _,
@@ -386,9 +387,10 @@ mod tests {
 
     #[test]
     fn test_get_bool_index_key() {
-        assert_eq!(Index::get_bool_key(None), vec![0]);
-        assert_eq!(Index::get_bool_key(Some(false)), vec![1]);
-        assert_eq!(Index::get_bool_key(Some(true)), vec![2]);
+        assert_eq!(Index::get_bool_key(Property::NULL_BOOL), vec![0]);
+        assert_eq!(Index::get_bool_key(12), vec![0]);
+        assert_eq!(Index::get_bool_key(Property::FALSE_BOOL), vec![1]);
+        assert_eq!(Index::get_bool_key(Property::TRUE_BOOL), vec![2]);
     }
 
     #[test]

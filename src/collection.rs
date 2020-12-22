@@ -1,7 +1,6 @@
 use crate::error::{illegal_arg, Result};
 use crate::index::{Index, IndexType};
 use crate::lmdb::db::Db;
-use crate::lmdb::txn::Txn;
 use crate::object::object_builder::ObjectBuilder;
 use crate::object::object_id::ObjectId;
 use crate::object::object_id_generator::ObjectIdGenerator;
@@ -9,6 +8,7 @@ use crate::object::object_info::ObjectInfo;
 use crate::object::property::Property;
 use crate::query::where_clause::WhereClause;
 
+use crate::txn::IsarTxn;
 #[cfg(test)]
 use {crate::utils::debug::dump_db, hashbrown::HashSet};
 
@@ -47,13 +47,13 @@ impl IsarCollection {
         }
     }
 
-    pub fn get<'txn>(&self, txn: &'txn Txn, oid: ObjectId) -> Result<Option<&'txn [u8]>> {
+    pub fn get<'txn>(&self, txn: &'txn IsarTxn, oid: ObjectId) -> Result<Option<&'txn [u8]>> {
         self.verify_object_id(oid)?;
         let oid_bytes = oid.as_bytes();
-        self.db.get(txn, &oid_bytes)
+        self.db.get(&txn.txn, &oid_bytes)
     }
 
-    pub fn put(&self, txn: &Txn, oid: Option<ObjectId>, object: &[u8]) -> Result<ObjectId> {
+    pub fn put(&self, txn: &IsarTxn, oid: Option<ObjectId>, object: &[u8]) -> Result<ObjectId> {
         let oid = if let Some(oid) = oid {
             self.verify_object_id(oid)?;
             self.delete_from_indexes(txn, oid)?;
@@ -62,37 +62,34 @@ impl IsarCollection {
             self.oidg.generate()
         };
 
-        if (ObjectId::get_size() + object.len()) % 8 != 0 {
+        if !self.object_info.verify_object(object) {
             illegal_arg("Provided object is invalid.")?;
         }
-
-        /*if !self.verify_object(object) {
-            illegal_arg("Provided object is invalid.")?;
-        }*/
 
         let oid_bytes = oid.as_bytes();
         for index in &self.indexes {
-            index.create_for_object(txn, &oid_bytes, object)?;
+            index.create_for_object(&txn.txn, &oid_bytes, object)?;
         }
 
-        self.db.put(txn, &oid_bytes, object)?;
+        self.db.put(&txn.txn, &oid_bytes, object)?;
         Ok(oid)
     }
 
-    pub fn delete(&self, txn: &Txn, oid: ObjectId) -> Result<()> {
+    pub fn delete(&self, txn: &IsarTxn, oid: ObjectId) -> Result<()> {
         self.verify_object_id(oid)?;
         if self.delete_from_indexes(txn, oid)? {
             let oid_bytes = oid.as_bytes();
-            self.db.delete(txn, &oid_bytes, None)?;
+            self.db.delete(&txn.txn, &oid_bytes, None)?;
         }
         Ok(())
     }
 
-    pub fn clear(&self, txn: &Txn) -> Result<()> {
+    pub fn clear(&self, txn: &IsarTxn) -> Result<()> {
         for index in &self.indexes {
-            index.clear(txn)?;
+            index.clear(&txn.txn)?;
         }
-        self.db.delete_key_prefix(txn, &self.id.to_le_bytes())?;
+        self.db
+            .delete_key_prefix(&txn.txn, &self.id.to_le_bytes())?;
 
         Ok(())
     }
@@ -111,12 +108,12 @@ impl IsarCollection {
         self.object_info.properties.get(property_index).copied()
     }
 
-    fn delete_from_indexes(&self, txn: &Txn, oid: ObjectId) -> Result<bool> {
+    fn delete_from_indexes(&self, txn: &IsarTxn, oid: ObjectId) -> Result<bool> {
         let existing_object = self.get(txn, oid)?;
         if let Some(existing_object) = existing_object {
             let oid_bytes = oid.as_bytes();
             for index in &self.indexes {
-                index.delete_for_object(txn, oid_bytes, existing_object)?;
+                index.delete_for_object(&txn.txn, oid_bytes, existing_object)?;
             }
             Ok(true)
         } else {
@@ -125,8 +122,8 @@ impl IsarCollection {
     }
 
     #[cfg(test)]
-    pub fn debug_dump(&self, txn: &Txn) -> HashSet<(Vec<u8>, Vec<u8>)> {
-        dump_db(self.db, txn, Some(&self.id.to_le_bytes()))
+    pub fn debug_dump(&self, txn: &IsarTxn) -> HashSet<(Vec<u8>, Vec<u8>)> {
+        dump_db(self.db, &txn, Some(&self.id.to_le_bytes()))
             .into_iter()
             .map(|(key, val)| (key.to_vec(), val))
             .collect()
@@ -146,6 +143,11 @@ impl IsarCollection {
     pub fn debug_get_id(&self) -> u16 {
         self.id
     }
+
+    #[cfg(test)]
+    pub(crate) fn debug_get_object_info(&self) -> ObjectInfo {
+        self.object_info.clone()
+    }
 }
 
 #[cfg(test)]
@@ -160,24 +162,24 @@ mod tests {
         let mut builder = col.get_object_builder();
         builder.write_int(1111111);
         let object1 = builder.finish();
-        let oid1 = col.put(&txn, None, &object1).unwrap();
+        let oid1 = col.put(&txn, None, object1.as_bytes()).unwrap();
 
         let mut builder = col.get_object_builder();
         builder.write_int(123123123);
         let object2 = builder.finish();
-        let oid2 = col.put(&txn, None, &object2).unwrap();
+        let oid2 = col.put(&txn, None, object2.as_bytes()).unwrap();
 
         let mut builder = col.get_object_builder();
         builder.write_int(123123123);
         let object3 = builder.finish();
-        let oid3 = col.put(&txn, None, &object3).unwrap();
+        let oid3 = col.put(&txn, None, object3.as_bytes()).unwrap();
 
         assert_eq!(
             col.debug_dump(&txn),
             set![
-                (oid1.as_bytes().to_vec(), object1),
-                (oid2.as_bytes().to_vec(), object2),
-                (oid3.as_bytes().to_vec(), object3)
+                (oid1.as_bytes().to_vec(), object1.as_bytes().to_vec()),
+                (oid2.as_bytes().to_vec(), object2.as_bytes().to_vec()),
+                (oid3.as_bytes().to_vec(), object3.as_bytes().to_vec())
             ]
         );
     }
@@ -191,26 +193,26 @@ mod tests {
         let mut builder = col.get_object_builder();
         builder.write_int(1111111);
         let object1 = builder.finish();
-        let oid1 = col.put(&txn, None, &object1).unwrap();
+        let oid1 = col.put(&txn, None, object1.as_bytes()).unwrap();
 
         let mut builder = col.get_object_builder();
         builder.write_int(123123123);
         let object2 = builder.finish();
-        let oid2 = col.put(&txn, Some(oid1), &object2).unwrap();
+        let oid2 = col.put(&txn, Some(oid1), object2.as_bytes()).unwrap();
         assert_eq!(oid1, oid2);
 
         let new_oid = col.oidg.generate();
         let mut builder = col.get_object_builder();
         builder.write_int(55555555);
         let object3 = builder.finish();
-        let oid3 = col.put(&txn, Some(new_oid), &object3).unwrap();
+        let oid3 = col.put(&txn, Some(new_oid), object3.as_bytes()).unwrap();
         assert_eq!(new_oid, oid3);
 
         assert_eq!(
             col.debug_dump(&txn),
             set![
-                (oid1.as_bytes().to_vec(), object2),
-                (new_oid.as_bytes().to_vec(), object3)
+                (oid1.as_bytes().to_vec(), object2.as_bytes().to_vec()),
+                (new_oid.as_bytes().to_vec(), object3.as_bytes().to_vec())
             ]
         );
     }
@@ -224,12 +226,15 @@ mod tests {
         let mut builder = col.get_object_builder();
         builder.write_int(1234);
         let object = builder.finish();
-        let oid = col.put(&txn, None, &object).unwrap();
+        let oid = col.put(&txn, None, object.as_bytes()).unwrap();
 
         let index = &col.indexes[0];
         assert_eq!(
             index.debug_dump(&txn),
-            set![(index.debug_create_key(&object), oid.as_bytes().to_vec())]
+            set![(
+                index.debug_create_key(object.as_bytes()),
+                oid.as_bytes().to_vec()
+            )]
         );
     }
 
@@ -242,17 +247,20 @@ mod tests {
         let mut builder = col.get_object_builder();
         builder.write_int(1234);
         let object = builder.finish();
-        let oid = col.put(&txn, None, &object).unwrap();
+        let oid = col.put(&txn, None, object.as_bytes()).unwrap();
 
         let mut builder = col.get_object_builder();
         builder.write_int(5678);
         let object2 = builder.finish();
-        col.put(&txn, Some(oid), &object2).unwrap();
+        col.put(&txn, Some(oid), object2.as_bytes()).unwrap();
 
         let index = &col.indexes[0];
         assert_eq!(
             index.debug_dump(&txn),
-            set![(index.debug_create_key(&object2), oid.as_bytes().to_vec())]
+            set![(
+                index.debug_create_key(object2.as_bytes()),
+                oid.as_bytes().to_vec()
+            )]
         );
     }
 
@@ -265,24 +273,27 @@ mod tests {
         let mut builder = col.get_object_builder();
         builder.write_int(12345);
         let object = builder.finish();
-        let oid = col.put(&txn, None, &object).unwrap();
+        let oid = col.put(&txn, None, object.as_bytes()).unwrap();
 
         let mut builder = col.get_object_builder();
         builder.write_int(54321);
         let object2 = builder.finish();
-        let oid2 = col.put(&txn, None, &object2).unwrap();
+        let oid2 = col.put(&txn, None, object2.as_bytes()).unwrap();
 
         col.delete(&txn, oid).unwrap();
 
         assert_eq!(
             col.debug_dump(&txn),
-            set![(oid2.as_bytes().to_vec(), object2.clone())],
+            set![(oid2.as_bytes().to_vec(), object2.as_bytes().to_vec())],
         );
 
         let index = &col.indexes[0];
         assert_eq!(
             index.debug_dump(&txn),
-            set![(index.debug_create_key(&object2), oid2.as_bytes().to_vec())],
+            set![(
+                index.debug_create_key(object2.as_bytes()),
+                oid2.as_bytes().to_vec()
+            )],
         );
     }
 
@@ -300,10 +311,10 @@ mod tests {
         builder.write_int(54321);
         let object2 = builder.finish();
 
-        col1.put(&txn, None, &object1).unwrap();
-        col1.put(&txn, None, &object2).unwrap();
-        let oid1 = col2.put(&txn, None, &object1).unwrap();
-        let oid2 = col2.put(&txn, None, &object2).unwrap();
+        col1.put(&txn, None, object1.as_bytes()).unwrap();
+        col1.put(&txn, None, object2.as_bytes()).unwrap();
+        let oid1 = col2.put(&txn, None, object1.as_bytes()).unwrap();
+        let oid2 = col2.put(&txn, None, object2.as_bytes()).unwrap();
 
         col1.clear(&txn).unwrap();
 
@@ -313,8 +324,8 @@ mod tests {
         assert_eq!(
             col2.debug_dump(&txn),
             set![
-                (oid1.as_bytes().to_vec(), object1.clone()),
-                (oid2.as_bytes().to_vec(), object2.clone())
+                (oid1.as_bytes().to_vec(), object1.as_bytes().to_vec()),
+                (oid2.as_bytes().to_vec(), object2.as_bytes().to_vec())
             ],
         );
 
@@ -322,8 +333,14 @@ mod tests {
         assert_eq!(
             index2.debug_dump(&txn),
             set![
-                (index2.debug_create_key(&object1), oid1.as_bytes().to_vec()),
-                (index2.debug_create_key(&object2), oid2.as_bytes().to_vec())
+                (
+                    index2.debug_create_key(object1.as_bytes()),
+                    oid1.as_bytes().to_vec()
+                ),
+                (
+                    index2.debug_create_key(object2.as_bytes()),
+                    oid2.as_bytes().to_vec()
+                )
             ]
         );
     }

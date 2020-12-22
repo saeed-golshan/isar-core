@@ -2,6 +2,7 @@ use crate::object::data_type::DataType;
 use crate::object::object_id::ObjectId;
 use crate::object::object_info::ObjectInfo;
 use crate::object::property::Property;
+use crate::utils::aligned_vec;
 use core::mem;
 use itertools::Itertools;
 use std::slice::from_raw_parts;
@@ -124,12 +125,16 @@ impl<'a> ObjectBuilder<'a> {
         self.write_list::<u8>(offset, None);
     }
 
-    pub fn finish(self) -> Vec<u8> {
-        let mut object = self.object;
-        let oid_body_bytes = ObjectId::get_size() + object.len();
-        let padding = vec![0; (8 - oid_body_bytes % 8) % 8];
-        object.extend_from_slice(&padding);
-        object
+    pub fn finish(self) -> ObjectBuilderResult {
+        let object = self.object;
+        let oid_padding = ObjectId::get_size() % 8;
+        let end_padding = (8 - (oid_padding + object.len()) % 8) % 8;
+
+        let mut aligned = aligned_vec(oid_padding + object.len() + end_padding);
+        aligned.resize(oid_padding, 0);
+        aligned.extend_from_slice(&object);
+        aligned.resize(oid_padding + object.len() + end_padding, 0);
+        ObjectBuilderResult { object: aligned }
     }
 
     fn write_list<T>(&mut self, offset: usize, list: Option<&[T]>) {
@@ -155,6 +160,16 @@ impl<'a> ObjectBuilder<'a> {
     }
 }
 
+pub struct ObjectBuilderResult {
+    object: Vec<u8>,
+}
+
+impl ObjectBuilderResult {
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.object[(ObjectId::get_size() % 8)..]
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::object::property::Property;
@@ -162,95 +177,115 @@ mod tests {
     use crate::{col, isar};
 
     macro_rules! builder {
-        ($var:ident, $type:ident) => {
+        ($var:ident, $oi:ident, $type:ident) => {
             isar!(isar, col => col!("int" => $type));
             let mut $var = col.get_object_builder();
+            let $oi = col.debug_get_object_info();
         };
     }
 
     #[test]
     pub fn test_write_int() {
-        builder!(b, Int);
+        builder!(b, oi, Int);
         b.write_int(123);
-        assert_eq!(b.finish(), 123i32.to_le_bytes().pad(2, 4))
+        let result = b.finish();
+        oi.verify_object(result.as_bytes());
+        assert_eq!(result.as_bytes(), 123i32.to_le_bytes().pad(2, 4))
     }
 
     #[test]
     #[should_panic]
     pub fn test_write_int_wrong_type() {
-        builder!(b, Long);
+        builder!(b, _oi, Long);
         b.write_int(123);
     }
 
     #[test]
     pub fn test_write_float() {
-        builder!(b, Float);
+        builder!(b, oi, Float);
         b.write_float(123.123);
-        assert_eq!(b.finish(), 123.123f32.to_le_bytes().pad(2, 4));
+        let result = b.finish();
+        oi.verify_object(result.as_bytes());
+        assert_eq!(result.as_bytes(), 123.123f32.to_le_bytes().pad(2, 4));
 
-        builder!(b, Float);
+        builder!(b, oi, Float);
         b.write_float(f32::NAN);
-        assert_eq!(b.finish(), f32::NAN.to_le_bytes().pad(2, 4));
+        let result = b.finish();
+        oi.verify_object(result.as_bytes());
+        assert_eq!(result.as_bytes(), f32::NAN.to_le_bytes().pad(2, 4));
     }
 
     #[test]
     #[should_panic]
     pub fn test_write_float_wrong_type() {
-        builder!(b, Double);
+        builder!(b, _oi, Double);
         b.write_float(123.123);
     }
 
     #[test]
     pub fn test_write_long() {
-        builder!(b, Long);
+        builder!(b, oi, Long);
         b.write_long(123123);
-        assert_eq!(b.finish(), 123123i64.to_le_bytes().pad(2, 0))
+        let result = b.finish();
+        oi.verify_object(result.as_bytes());
+        assert_eq!(result.as_bytes(), 123123i64.to_le_bytes().pad(2, 0))
     }
 
     #[test]
     #[should_panic]
     pub fn test_write_long_wrong_type() {
-        builder!(b, Int);
+        builder!(b, _oi, Int);
         b.write_long(123123);
     }
 
     #[test]
     pub fn test_write_double() {
-        builder!(b, Double);
+        builder!(b, oi, Double);
         b.write_double(123.123);
-        assert_eq!(b.finish(), 123.123f64.to_le_bytes().pad(2, 0));
+        let result = b.finish();
+        oi.verify_object(result.as_bytes());
+        assert_eq!(result.as_bytes(), 123.123f64.to_le_bytes().pad(2, 0));
 
-        builder!(b, Double);
+        builder!(b, oi, Double);
         b.write_double(f64::NAN);
-        assert_eq!(b.finish(), f64::NAN.to_le_bytes().pad(2, 0));
+        let result = b.finish();
+        oi.verify_object(result.as_bytes());
+        assert_eq!(result.as_bytes(), f64::NAN.to_le_bytes().pad(2, 0));
     }
 
     #[test]
     #[should_panic]
     pub fn test_write_double_wrong_type() {
-        builder!(b, Float);
+        builder!(b, _oi, Float);
+
         b.write_double(123.0);
     }
 
     #[test]
     pub fn test_write_bool() {
-        builder!(b, Bool);
+        builder!(b, oi, Bool);
         b.write_bool(None);
-        assert_eq!(b.finish(), &[Property::NULL_BOOL, 0]);
+        let result = b.finish();
+        oi.verify_object(result.as_bytes());
+        assert_eq!(result.as_bytes(), &[Property::NULL_BOOL, 0]);
 
-        builder!(b, Bool);
+        builder!(b, oi, Bool);
         b.write_bool(Some(false));
-        assert_eq!(b.finish(), &[Property::FALSE_BOOL, 0]);
+        let result = b.finish();
+        oi.verify_object(result.as_bytes());
+        assert_eq!(result.as_bytes(), &[Property::FALSE_BOOL, 0]);
 
-        builder!(b, Bool);
+        builder!(b, oi, Bool);
         b.write_bool(Some(true));
-        assert_eq!(b.finish(), &[Property::TRUE_BOOL, 0]);
+        let result = b.finish();
+        oi.verify_object(result.as_bytes());
+        assert_eq!(result.as_bytes(), &[Property::TRUE_BOOL, 0]);
     }
 
     #[test]
     #[should_panic]
     pub fn test_write_bool_wrong_type() {
-        builder!(b, String);
+        builder!(b, _oi, String);
         b.write_bool(Some(true));
     }
 

@@ -80,7 +80,7 @@ impl CollectionSchema {
                 self.properties
                     .iter()
                     .find(|p| p.name == *index_property)
-                    .map(|p| p.clone())
+                    .cloned()
             })
             .collect();
         if properties.is_none() {

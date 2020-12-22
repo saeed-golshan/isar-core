@@ -1,6 +1,8 @@
-use crate::error::Result;
-use crate::{collection::IsarCollection, query::query::Query};
-use crate::{lmdb::txn::Txn, object::object_id::ObjectId};
+use isar_core::collection::IsarCollection;
+use isar_core::error::Result;
+use isar_core::object::object_id::ObjectId;
+use isar_core::query::query::Query;
+use isar_core::txn::IsarTxn;
 use std::{ptr, slice};
 
 #[repr(C)]
@@ -69,7 +71,7 @@ pub struct RawObjectSet {
 }
 
 impl RawObjectSet {
-    pub fn fill_from_query(&mut self, query: &Query, txn: &Txn) -> Result<()> {
+    pub fn fill_from_query(&mut self, query: &Query, txn: &IsarTxn) -> Result<()> {
         let mut objects = vec![];
         query.find_all(txn, |oid, object| {
             objects.push(RawObject::new(*oid, object));
@@ -88,6 +90,28 @@ impl RawObjectSet {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn isar_free_obj_data(object: &mut RawObject) {
-    object.clear();
+pub extern "C" fn isar_alloc_raw_obj(size: u32) -> *mut RawObject {
+    assert_eq!((size as usize + ObjectId::get_size()) % 8, 0);
+    let padding = ObjectId::get_size() % 8;
+    let buffer_size = size as usize + padding;
+    let buffer = vec![0u8; buffer_size];
+    let ptr = buffer[padding..].as_ptr();
+    std::mem::forget(buffer);
+    let raw_obj = RawObject {
+        oid_time: 0,
+        oid_rand_counter: 0,
+        data: ptr,
+        data_length: size,
+    };
+    Box::into_raw(Box::new(raw_obj))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn isar_free_raw_obj(object: &mut RawObject) {
+    let object = Box::from_raw(object);
+    let padding = ObjectId::get_size() % 8;
+    let buffer_size = object.data_length as usize + padding;
+
+    let data = object.data.sub(padding);
+    Vec::from_raw_parts(data as *mut u8, buffer_size, buffer_size);
 }

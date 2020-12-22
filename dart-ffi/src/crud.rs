@@ -1,12 +1,12 @@
-use crate::collection::IsarCollection;
-use crate::error::illegal_arg;
-use crate::ffi::raw_object_set::RawObject;
-use crate::lmdb::txn::Txn;
+use crate::raw_object_set::RawObject;
+use isar_core::collection::IsarCollection;
+use isar_core::error::illegal_arg;
+use isar_core::txn::IsarTxn;
 
 #[no_mangle]
 pub unsafe extern "C" fn isar_get(
     collection: Option<&IsarCollection>,
-    txn: Option<&Txn>,
+    txn: Option<&IsarTxn>,
     object: &mut RawObject,
 ) -> u8 {
     isar_try! {
@@ -27,7 +27,7 @@ pub unsafe extern "C" fn isar_get(
 #[no_mangle]
 pub unsafe extern "C" fn isar_put(
     collection: Option<&mut IsarCollection>,
-    txn: Option<&Txn>,
+    txn: Option<&IsarTxn>,
     object: &mut RawObject,
 ) -> u8 {
     isar_try! {
@@ -42,7 +42,7 @@ pub unsafe extern "C" fn isar_put(
 #[no_mangle]
 pub unsafe extern "C" fn isar_delete(
     collection: Option<&IsarCollection>,
-    txn: Option<&Txn>,
+    txn: Option<&IsarTxn>,
     object: &RawObject,
 ) -> u8 {
     isar_try! {

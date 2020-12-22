@@ -13,7 +13,7 @@ impl ObjectId {
         mem::size_of::<ObjectId>()
     }
 
-    pub(crate) fn new(prefix: u16, time: u32, rand_counter: u64) -> Self {
+    pub fn new(prefix: u16, time: u32, rand_counter: u64) -> Self {
         ObjectId {
             prefix,
             time: time.to_be(),

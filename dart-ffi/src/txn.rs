@@ -1,10 +1,10 @@
-use crate::instance::IsarInstance;
-use crate::lmdb::txn::Txn;
+use isar_core::instance::IsarInstance;
+use isar_core::txn::IsarTxn;
 
 #[no_mangle]
 pub unsafe extern "C" fn isar_txn_begin(
     isar: Option<&IsarInstance>,
-    txn: *mut *const Txn,
+    txn: *mut *const IsarTxn,
     write: bool,
 ) -> u8 {
     isar_try! {
@@ -15,7 +15,7 @@ pub unsafe extern "C" fn isar_txn_begin(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn isar_txn_commit(txn: *mut Txn) -> u8 {
+pub unsafe extern "C" fn isar_txn_commit(txn: *mut IsarTxn) -> u8 {
     isar_try! {
         let txn = Box::from_raw(txn);
         txn.commit()?;
@@ -23,7 +23,7 @@ pub unsafe extern "C" fn isar_txn_commit(txn: *mut Txn) -> u8 {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn isar_txn_abort(txn: *mut Txn) {
+pub unsafe extern "C" fn isar_txn_abort(txn: *mut IsarTxn) {
     let txn = Box::from_raw(txn);
     txn.abort();
 }

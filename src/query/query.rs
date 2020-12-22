@@ -1,12 +1,12 @@
 use crate::error::Result;
 use crate::lmdb::db::Db;
-use crate::lmdb::txn::Txn;
 use crate::map_option;
 use crate::object::object_id::ObjectId;
 use crate::object::property::Property;
 use crate::query::filter::*;
 use crate::query::where_clause::WhereClause;
 use crate::query::where_executor::WhereExecutor;
+use crate::txn::IsarTxn;
 use hashbrown::HashSet;
 use std::hash::Hasher;
 use wyhash::WyHash;
@@ -58,13 +58,13 @@ impl Query {
         }
     }
 
-    fn execute_raw<'txn, F>(&self, txn: &'txn Txn, mut callback: F) -> Result<()>
+    fn execute_raw<'txn, F>(&self, txn: &'txn IsarTxn, mut callback: F) -> Result<()>
     where
         F: FnMut(&'txn ObjectId, &'txn [u8]) -> bool,
     {
-        let primary_cursor = self.primary_db.cursor(&txn)?;
-        let secondary_cursor = map_option!(self.secondary_db, db, db.cursor(&txn)?);
-        let secondary_dup_cursor = map_option!(self.secondary_dup_db, db, db.cursor(&txn)?);
+        let primary_cursor = self.primary_db.cursor(&txn.txn)?;
+        let secondary_cursor = map_option!(self.secondary_db, db, db.cursor(&txn.txn)?);
+        let secondary_dup_cursor = map_option!(self.secondary_dup_db, db, db.cursor(&txn.txn)?);
         let mut executor = WhereExecutor::new(
             primary_cursor,
             secondary_cursor,
@@ -85,7 +85,7 @@ impl Query {
         }
     }
 
-    fn execute_unsorted<'txn, F>(&self, txn: &'txn Txn, callback: F) -> Result<()>
+    fn execute_unsorted<'txn, F>(&self, txn: &'txn IsarTxn, callback: F) -> Result<()>
     where
         F: FnMut(&'txn ObjectId, &'txn [u8]) -> bool,
     {
@@ -105,7 +105,7 @@ impl Query {
         }
     }
 
-    fn execute_sorted<'txn, F>(&self, _txn: &'txn Txn, _callback: F) -> Result<()>
+    fn execute_sorted<'txn, F>(&self, _txn: &'txn IsarTxn, _callback: F) -> Result<()>
     where
         F: FnMut(&'txn ObjectId, &'txn [u8]) -> bool,
     {
@@ -132,13 +132,7 @@ impl Query {
         move |key, val| {
             let mut hasher = WyHash::default();
             for property in &properties {
-                let static_bytes = property.get_static_raw(val);
-                hasher.write(static_bytes);
-                if property.data_type.is_dynamic() {
-                    if let Some(dynamic_bytes) = property.get_dynamic_raw(val) {
-                        hasher.write(dynamic_bytes);
-                    }
-                }
+                property.hash_value(val, &mut hasher);
             }
             let hash = hasher.finish();
             if hashes.insert(hash) {
@@ -169,7 +163,7 @@ impl Query {
         }
     }
 
-    pub fn find_all<'txn, F>(&self, txn: &'txn Txn, callback: F) -> Result<()>
+    pub fn find_all<'txn, F>(&self, txn: &'txn IsarTxn, callback: F) -> Result<()>
     where
         F: FnMut(&'txn ObjectId, &'txn [u8]) -> bool,
     {
@@ -180,7 +174,10 @@ impl Query {
         }
     }
 
-    pub fn find_all_vec<'txn>(&self, txn: &'txn Txn) -> Result<Vec<(&'txn ObjectId, &'txn [u8])>> {
+    pub fn find_all_vec<'txn>(
+        &self,
+        txn: &'txn IsarTxn,
+    ) -> Result<Vec<(&'txn ObjectId, &'txn [u8])>> {
         let mut results = vec![];
         self.find_all(txn, |key, value| {
             results.push((key, value));
@@ -189,7 +186,7 @@ impl Query {
         Ok(results)
     }
 
-    pub fn count(&self, txn: &Txn) -> Result<u32> {
+    pub fn count(&self, txn: &IsarTxn) -> Result<u32> {
         let mut counter = 0;
         self.find_all(txn, &mut |_, _| {
             counter += 1;
@@ -216,7 +213,7 @@ mod tests {
             o.write_int(f2);
             o.write_string(Some(&f3));
             let bytes = o.finish();
-            ids.push(col.put(&txn, None, &bytes).unwrap());
+            ids.push(col.put(&txn, None, bytes.as_bytes()).unwrap());
         }
         txn.commit().unwrap();
         (isar, ids)

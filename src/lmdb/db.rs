@@ -3,8 +3,8 @@ use crate::lmdb::cursor::Cursor;
 use crate::lmdb::error::{lmdb_result, LmdbError};
 use crate::lmdb::txn::Txn;
 use crate::lmdb::{from_mdb_val, to_mdb_val, EMPTY_VAL};
-use crate::utils::to_c_str;
 use lmdb_sys as ffi;
+use std::ffi::CString;
 use std::ptr;
 
 #[derive(Copy, Clone)]
@@ -15,7 +15,7 @@ pub struct Db {
 
 impl Db {
     pub fn open(txn: &Txn, name: &str, dup: bool, fixed_vals: bool) -> Result<Self> {
-        let name = to_c_str(name)?;
+        let name = CString::new(name.as_bytes()).unwrap();
         let mut flags = ffi::MDB_CREATE;
         if dup {
             flags |= ffi::MDB_DUPSORT;

@@ -139,9 +139,9 @@ mod tests {
         overlapping: bool,
     ) -> Vec<u32> {
         let txn = isar.begin_txn(false).unwrap();
-        let primary_cursor = isar.debug_get_primary_db().cursor(&txn).unwrap();
-        let secondary_cursor = isar.debug_get_secondary_db().cursor(&txn).unwrap();
-        let secondary_dup_cursor = isar.debug_get_secondary_dup_db().cursor(&txn).unwrap();
+        let primary_cursor = isar.debug_get_primary_db().cursor(&txn.txn).unwrap();
+        let secondary_cursor = isar.debug_get_secondary_db().cursor(&txn.txn).unwrap();
+        let secondary_dup_cursor = isar.debug_get_secondary_dup_db().cursor(&txn.txn).unwrap();
         let mut executer = WhereExecutor::new(
             primary_cursor,
             Some(secondary_cursor),

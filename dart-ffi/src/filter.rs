@@ -1,6 +1,6 @@
-use crate::collection::IsarCollection;
-use crate::error::illegal_arg;
-use crate::query::filter::{Filter, IntBetween, LongBetween};
+use isar_core::collection::IsarCollection;
+use isar_core::error::illegal_arg;
+use isar_core::query::filter::{Filter, IntBetween, LongBetween};
 
 #[no_mangle]
 pub unsafe extern "C" fn isar_filter_int_between(

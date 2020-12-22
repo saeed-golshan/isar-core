@@ -1,9 +1,9 @@
 use crate::error::Result;
 use crate::lmdb::error::{lmdb_result, LmdbError};
 use crate::lmdb::txn::Txn;
-use crate::utils::to_c_str;
 use core::ptr;
 use lmdb_sys as ffi;
+use std::ffi::CString;
 
 pub struct Env {
     env: *mut ffi::MDB_env,
@@ -24,7 +24,7 @@ macro_rules! lmdb_try_with_cleanup {
 
 impl Env {
     pub fn create(path: &str, max_dbs: u32, max_size: u32) -> Result<Env> {
-        let path = to_c_str(path)?;
+        let path = CString::new(path.as_bytes()).unwrap();
         let mut env: *mut ffi::MDB_env = ptr::null_mut();
         unsafe {
             lmdb_result(ffi::mdb_env_create(&mut env))?;

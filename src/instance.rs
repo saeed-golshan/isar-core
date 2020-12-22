@@ -3,9 +3,9 @@ use crate::data_dbs::DataDbs;
 use crate::error::*;
 use crate::lmdb::db::Db;
 use crate::lmdb::env::Env;
-use crate::lmdb::txn::Txn;
 use crate::query::query_builder::QueryBuilder;
 use crate::schema::Schema;
+use crate::txn::IsarTxn;
 
 pub const ISAR_VERSION: u32 = 1;
 
@@ -70,8 +70,8 @@ impl IsarInstance {
     }*/
 
     #[inline]
-    pub fn begin_txn(&self, write: bool) -> Result<Txn> {
-        self.env.txn(write)
+    pub fn begin_txn(&self, write: bool) -> Result<IsarTxn> {
+        Ok(IsarTxn::new(self.env.txn(write)?, write))
     }
 
     pub fn get_collection(&self, collection_index: usize) -> Option<&IsarCollection> {
