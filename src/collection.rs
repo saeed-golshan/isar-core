@@ -21,22 +21,6 @@ pub struct IsarCollection {
     oidg: ObjectIdGenerator,
 }
 
-pub struct PendingPut<'a> {
-    lmdb_txn: Txn,
-    oid: ObjectId,
-    object: &'a mut [u8],
-}
-
-impl<'a> PendingPut<'a> {
-    pub fn get_oid(&mut self) -> ObjectId {
-        self.oid
-    }
-
-    pub fn get_writable_space(&mut self) -> &mut [u8] {
-        self.object
-    }
-}
-
 impl IsarCollection {
     pub(crate) fn new(id: u16, object_info: ObjectInfo, indexes: Vec<Index>, db: Db) -> Self {
         IsarCollection {
@@ -96,37 +80,6 @@ impl IsarCollection {
         self.db.put(&lmdb_txn, &oid_bytes, object)?;
         txn.put_write_txn(lmdb_txn);
         Ok(oid)
-    }
-
-    pub fn prepare_put(
-        &self,
-        txn: &mut IsarTxn,
-        oid: Option<ObjectId>,
-        size: usize,
-    ) -> Result<PendingPut> {
-        let lmdb_txn = txn.take_write_txn()?;
-        let oid = self.generate_or_veriy_oid(&lmdb_txn, oid)?;
-
-        let object = self.db.reserve(&lmdb_txn, oid.as_bytes(), size)?;
-        let pending_put = PendingPut {
-            lmdb_txn,
-            oid,
-            object,
-        };
-        Ok(pending_put)
-    }
-
-    pub fn finish_put(&self, txn: &mut IsarTxn, pending: PendingPut) -> Result<()> {
-        if !self.object_info.verify_object(pending.object) {
-            illegal_arg("Provided object is invalid.")?;
-        }
-
-        let oid_bytes = pending.oid.as_bytes();
-        for index in &self.indexes {
-            index.create_for_object(&pending.lmdb_txn, &oid_bytes, pending.object)?;
-        }
-        txn.put_write_txn(pending.lmdb_txn);
-        Ok(())
     }
 
     pub fn delete(&self, txn: &mut IsarTxn, oid: ObjectId) -> Result<()> {

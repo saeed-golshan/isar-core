@@ -25,32 +25,17 @@ pub unsafe extern "C" fn isar_get(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn isar_prepare_put<'a>(
-    collection: Option<&'a mut IsarCollection>,
+pub unsafe extern "C" fn isar_put(
+    collection: Option<&mut IsarCollection>,
     txn: Option<&mut IsarTxn>,
     object: &mut RawObject,
-    pending_put: *mut *const PendingPut<'a>,
 ) -> u8 {
     isar_try! {
         let collection = collection.unwrap();
         let oid = object.get_object_id(collection);
-        let mut pending = collection.prepare_put(txn.unwrap(), oid, object.get_length() as usize)?;
-        object.set_object(pending.get_writable_space());
-        object.set_object_id(pending.get_oid());
-        pending_put.write(Box::into_raw(Box::new(pending)));
-    }
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn isar_finish_put(
-    collection: Option<&mut IsarCollection>,
-    txn: Option<&mut IsarTxn>,
-    pending_put: *mut PendingPut,
-) -> u8 {
-    let pending_put = *Box::from_raw(pending_put);
-    isar_try! {
-        let collection = collection.unwrap();
-        let oid = collection.finish_put(txn.unwrap(), pending_put)?;
+        let data = object.object_as_slice();
+        let oid = collection.put(txn.unwrap(), oid, data)?;
+        object.set_object_id(oid);
     }
 }
 
