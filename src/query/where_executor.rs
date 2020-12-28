@@ -139,9 +139,10 @@ mod tests {
         overlapping: bool,
     ) -> Vec<u32> {
         let txn = isar.begin_txn(false).unwrap();
-        let primary_cursor = isar.debug_get_primary_db().cursor(&txn.txn).unwrap();
-        let secondary_cursor = isar.debug_get_secondary_db().cursor(&txn.txn).unwrap();
-        let secondary_dup_cursor = isar.debug_get_secondary_dup_db().cursor(&txn.txn).unwrap();
+        let lmdb_txn = txn.get_read_txn().unwrap();
+        let primary_cursor = isar.debug_get_primary_db().cursor(lmdb_txn).unwrap();
+        let secondary_cursor = isar.debug_get_secondary_db().cursor(lmdb_txn).unwrap();
+        let secondary_dup_cursor = isar.debug_get_secondary_dup_db().cursor(lmdb_txn).unwrap();
         let mut executer = WhereExecutor::new(
             primary_cursor,
             Some(secondary_cursor),
@@ -161,7 +162,7 @@ mod tests {
 
     fn get_test_db() -> IsarInstance {
         isar!(isar, col => col!(f1 => Int, f2=> Int, f3 => String; ind!(f1, f3), ind!(f2; true)));
-        let txn = isar.begin_txn(true).unwrap();
+        let mut txn = isar.begin_txn(true).unwrap();
 
         let build_value = |field1: i32, field2: i32, field3: &str| {
             let mut builder = col.get_object_builder();
@@ -181,7 +182,7 @@ mod tests {
             (oid(5), build_value(3, 5, "bbb")),
             (oid(6), build_value(3, 6, "bcc")),
         ];
-        fill_db(col, &txn, &data);
+        fill_db(col, &mut txn, &data);
         txn.commit().unwrap();
 
         isar

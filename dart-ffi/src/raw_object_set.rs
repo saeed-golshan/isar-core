@@ -56,6 +56,10 @@ impl RawObject {
         }
     }
 
+    pub fn get_length(&self) -> u32 {
+        self.get_length()
+    }
+
     pub fn clear(&mut self) {
         self.oid_time = 0;
         self.oid_rand_counter = 0;

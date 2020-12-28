@@ -62,9 +62,10 @@ impl Query {
     where
         F: FnMut(&'txn ObjectId, &'txn [u8]) -> bool,
     {
-        let primary_cursor = self.primary_db.cursor(&txn.txn)?;
-        let secondary_cursor = map_option!(self.secondary_db, db, db.cursor(&txn.txn)?);
-        let secondary_dup_cursor = map_option!(self.secondary_dup_db, db, db.cursor(&txn.txn)?);
+        let lmdb_txn = txn.get_read_txn()?;
+        let primary_cursor = self.primary_db.cursor(lmdb_txn)?;
+        let secondary_cursor = map_option!(self.secondary_db, db, db.cursor(lmdb_txn)?);
+        let secondary_dup_cursor = map_option!(self.secondary_dup_db, db, db.cursor(lmdb_txn)?);
         let mut executor = WhereExecutor::new(
             primary_cursor,
             secondary_cursor,
@@ -205,7 +206,7 @@ mod tests {
 
     fn get_col(data: Vec<(bool, i32, String)>) -> (IsarInstance, Vec<ObjectId>) {
         isar!(isar, col => col!(field1 => Bool, field2 => Int, field3 => String; ind!(field1, field2; true), ind!(field3)));
-        let txn = isar.begin_txn(true).unwrap();
+        let mut txn = isar.begin_txn(true).unwrap();
         let mut ids = vec![];
         for (f1, f2, f3) in data {
             let mut o = col.get_object_builder();
@@ -213,7 +214,7 @@ mod tests {
             o.write_int(f2);
             o.write_string(Some(&f3));
             let bytes = o.finish();
-            ids.push(col.put(&txn, None, bytes.as_bytes()).unwrap());
+            ids.push(col.put(&mut txn, None, bytes.as_bytes()).unwrap());
         }
         txn.commit().unwrap();
         (isar, ids)

@@ -10,6 +10,7 @@ mod generate;
 
 use std::env;
 use std::path::PathBuf;
+use cc::Build;
 
 fn main() {
     #[cfg(feature = "bindgen")]
@@ -21,16 +22,17 @@ fn main() {
     lmdb.push("liblmdb");
 
     if pkg_config::find_library("liblmdb").is_err() {
-        let mut builder = cc::Build::new();
+        let mut builder = Build::new();
 
         builder
             .file(lmdb.join("mdb.c"))
             .file(lmdb.join("midl.c"))
-            // https://github.com/mozilla/lmdb/blob/b7df2cac50fb41e8bd16aab4cc5fd167be9e032a/libraries/liblmdb/Makefile#L23
+            .define("MDB_DEVEL", "2")
+            //.define("MDB_DEBUG","2")
             .flag_if_supported("-Wno-unused-parameter")
             .flag_if_supported("-Wbad-function-cast")
             .flag_if_supported("-Wuninitialized");
-
+        //eprintln!("BUILDSIMON");
         builder.compile("liblmdb.a")
     }
 }

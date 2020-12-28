@@ -1,4 +1,5 @@
 use crate::error::{illegal_arg, Result};
+use crate::object::data_type::DataType;
 use crate::object::property::Property;
 use enum_dispatch::enum_dispatch;
 
@@ -11,10 +12,11 @@ pub enum Case {
 #[enum_dispatch]
 pub enum Filter {
     IsNull(IsNull),
-    IntBetween(IntBetween),
-    LongBetween(LongBetween),
-    FloatBetween(FloatBetween),
-    DoubleBetween(DoubleBetween),
+    Bool(BoolEqualTo),
+    Int(IntBetween),
+    Long(LongBetween),
+    Float(FloatBetween),
+    Double(DoubleBetween),
     //StrAnyOf(StrAnyOf),
     /*StrStartsWith(),
     StrEndsWith(),
@@ -40,11 +42,40 @@ pub trait Condition {
 
 pub struct IsNull {
     property: Property,
+    is_null: bool,
 }
 
 impl Condition for IsNull {
     fn evaluate(&self, object: &[u8]) -> bool {
-        self.property.is_null(object)
+        self.property.is_null(object) == self.is_null
+    }
+}
+
+impl IsNull {
+    pub fn filter(property: Property, is_null: bool) -> Filter {
+        Filter::IsNull(Self { property, is_null })
+    }
+}
+
+pub struct BoolEqualTo {
+    value: bool,
+    property: Property,
+}
+
+impl Condition for BoolEqualTo {
+    fn evaluate(&self, object: &[u8]) -> bool {
+        let val = self.property.get_bool(object) == Property::TRUE_BOOL;
+        self.value == val
+    }
+}
+
+impl BoolEqualTo {
+    pub fn filter(property: Property, value: bool) -> Result<Filter> {
+        if property.data_type == DataType::Bool {
+            Ok(Filter::Bool(Self { property, value }))
+        } else {
+            illegal_arg("Property does not support this filter.")
+        }
     }
 }
 
@@ -67,7 +98,7 @@ macro_rules! primitive_filter (
         impl $between_name {
             pub fn filter(property: Property, lower: $type, upper: $type) -> Result<Filter> {
                 if property.data_type == crate::object::data_type::DataType::$data_type {
-                    Ok(Filter::$between_name($between_name {
+                    Ok(Filter::$data_type(Self {
                         property,
                         lower,
                         upper,

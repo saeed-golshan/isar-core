@@ -74,7 +74,28 @@ impl Db {
         }
     }
 
-    fn put_internal(
+    pub fn reserve(&self, txn: &Txn, key: &[u8], size: usize) -> Result<&mut [u8]> {
+        unsafe {
+            let mut key = to_mdb_val(key);
+            let mut data = ffi::MDB_val {
+                mv_size: size,
+                mv_data: ptr::null::<u8>() as *mut libc::c_void,
+            };
+            lmdb_result(ffi::mdb_put(
+                txn.txn,
+                self.dbi,
+                &mut key,
+                &mut data,
+                ffi::MDB_RESERVE,
+            ))?;
+            Ok(std::slice::from_raw_parts_mut(
+                data.mv_data as *mut u8,
+                size,
+            ))
+        }
+    }
+
+    fn put_internal<'a>(
         &self,
         txn: &Txn,
         key: &[u8],

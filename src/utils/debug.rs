@@ -92,12 +92,12 @@ macro_rules! ind (
 
 pub fn fill_db<'a>(
     col: &IsarCollection,
-    txn: &'a IsarTxn,
+    txn: &mut IsarTxn,
     data: &'a [(Option<ObjectId>, ObjectBuilderResult)],
 ) -> HashMap<Vec<u8>, Vec<u8>> {
     let mut result = HashMap::new();
     for (oid, object) in data {
-        let oid = col.put(&txn, *oid, object.as_bytes()).unwrap();
+        let oid = col.put(txn, *oid, object.as_bytes()).unwrap();
         result.insert(oid.as_bytes().to_vec(), object.as_bytes().to_vec());
     }
     result
@@ -109,23 +109,21 @@ pub fn ref_map<K: Eq + Hash, V>(map: &HashMap<K, V>) -> HashMap<&K, &V> {
 
 pub fn dump_db(db: Db, txn: &IsarTxn, prefix: Option<&[u8]>) -> HashSet<(Vec<u8>, Vec<u8>)> {
     let mut set = HashSet::new();
-    let mut cursor = db.cursor(&txn.txn).unwrap();
+    let mut cursor = db.cursor(txn.get_read_txn().unwrap()).unwrap();
 
     let result = if let Some(prefix) = prefix {
         cursor.move_to_gte(prefix).unwrap()
     } else {
         cursor.move_to_first().unwrap()
     };
-    if result.is_none() {
-        return set;
-    }
-
-    for kv in cursor.iter() {
-        let (key, val) = kv.unwrap();
-        if prefix.is_some() && !key.starts_with(prefix.unwrap()) {
-            break;
+    if result.is_some() {
+        for kv in cursor.iter() {
+            let (key, val) = kv.unwrap();
+            if prefix.is_some() && !key.starts_with(prefix.unwrap()) {
+                break;
+            }
+            set.insert((key.to_vec(), val.to_vec()));
         }
-        set.insert((key.to_vec(), val.to_vec()));
     }
     set
 }

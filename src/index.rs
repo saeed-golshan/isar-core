@@ -229,13 +229,13 @@ mod tests {
         macro_rules! test_index (
             ($data_type:ident , $data:expr, $write:ident) => {
                 isar!(isar, col => col!(field => $data_type; ind!(field)));
-                let txn = isar.begin_txn(true).unwrap();
+                let mut txn = isar.begin_txn(true).unwrap();
 
                 let mut builder = col.get_object_builder();
                 builder.$write($data);
                 let obj = builder.finish();
 
-                let oid = col.put(&txn, None, obj.as_bytes()).unwrap();
+                let oid = col.put(&mut txn, None, obj.as_bytes()).unwrap();
                 let index = col.debug_get_index(0);
 
                 assert_eq!(
@@ -261,15 +261,15 @@ mod tests {
     #[test]
     fn test_create_for_violate_unique() {
         isar!(isar, col => col!(field => Int; ind!(field; true)));
-        let txn = isar.begin_txn(true).unwrap();
+        let mut txn = isar.begin_txn(true).unwrap();
 
         let mut o = col.get_object_builder();
         o.write_int(5);
         let bytes = o.finish();
 
-        col.put(&txn, None, bytes.as_bytes()).unwrap();
+        col.put(&mut txn, None, bytes.as_bytes()).unwrap();
 
-        let result = col.put(&txn, None, bytes.as_bytes());
+        let result = col.put(&mut txn, None, bytes.as_bytes());
         match result {
             Err(IsarError::UniqueViolated {
                 source: _,
