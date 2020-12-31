@@ -2,6 +2,7 @@ use crate::from_c_str;
 use isar_core::collection::IsarCollection;
 use isar_core::error::illegal_arg;
 use isar_core::object::object_id::ObjectId;
+use isar_core::object::property::Property;
 use isar_core::query::where_clause::WhereClause;
 use std::os::raw::c_char;
 
@@ -130,9 +131,9 @@ pub extern "C" fn isar_wc_add_upper_double(
 #[no_mangle]
 pub extern "C" fn isar_wc_add_bool(where_clause: Option<&mut WhereClause>, value: u8) {
     let value = match value {
-        0 => None,
-        1 => Some(false),
-        _ => Some(true),
+        Property::FALSE_BOOL => Some(false),
+        Property::TRUE_BOOL => Some(true),
+        _ => None,
     };
     where_clause.unwrap().add_bool(value);
 }

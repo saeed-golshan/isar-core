@@ -1,5 +1,5 @@
 use crate::raw_object_set::RawObject;
-use isar_core::collection::{IsarCollection, PendingPut};
+use isar_core::collection::IsarCollection;
 use isar_core::error::illegal_arg;
 use isar_core::txn::IsarTxn;
 

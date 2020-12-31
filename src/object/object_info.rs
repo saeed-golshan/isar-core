@@ -23,7 +23,6 @@ impl ObjectInfo {
     }
 
     pub fn verify_object(&self, object: &[u8]) -> bool {
-        eprintln!("{:?}", object);
         let alignment = object.as_ref().as_ptr() as usize - ObjectId::get_size();
         if alignment % 8 != 0 {
             return false;

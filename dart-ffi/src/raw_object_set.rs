@@ -82,9 +82,10 @@ impl RawObjectSet {
             true
         })?;
 
-        objects.shrink_to_fit();
+        let mut objects = objects.into_boxed_slice();
         self.objects = objects.as_mut_ptr();
         self.length = objects.len() as u32;
+        std::mem::forget(objects);
         Ok(())
     }
 

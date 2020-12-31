@@ -395,8 +395,6 @@ mod tests {
     fn test_move_to_next() {
         let (env, db) = get_filled_db();
 
-        println!("{:?}", Some((b"key1", b"val1")));
-
         let txn = env.txn(false).unwrap();
         let mut cur = db.cursor(&txn).unwrap();
 

@@ -56,7 +56,6 @@ mod tests {
 
     #[test]
     fn test_generate() {
-        println!("{:?}", u16::from_be_bytes([0, 2]));
         let mut oidg = ObjectIdGenerator::new_debug(
             u16::from_be_bytes([1, 2]),
             || u32::from_be_bytes([3, 4, 5, 6]) as u64,

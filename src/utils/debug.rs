@@ -2,7 +2,6 @@
 
 use crate::collection::IsarCollection;
 use crate::lmdb::db::Db;
-use crate::lmdb::txn::Txn;
 use crate::object::object_builder::ObjectBuilderResult;
 use crate::object::object_id::ObjectId;
 use crate::txn::IsarTxn;

@@ -1,4 +1,4 @@
-use crate::error::Result;
+use crate::error::{illegal_arg, IsarError, Result};
 use crate::index::{Index, IndexType};
 use crate::lmdb::cursor::{Cursor, CursorIterator};
 use crate::lmdb::KeyVal;
@@ -52,84 +52,28 @@ impl WhereClause {
         self.upper_key.extend_from_slice(bytes);
     }
 
-    pub fn add_lower_oid_time(&mut self, mut time: u32, include: bool) {
+    pub fn add_lower_oid_time(&mut self, mut time: u32, include: bool) -> Result<()> {
         if !include {
-            time += 1;
+            if let Some(value) = time.checked_add(1) {
+                time = value;
+            } else {
+                illegal_arg("Where clause value overflow")?;
+            }
         }
         self.lower_key.extend_from_slice(&time.to_be_bytes());
+        Ok(())
     }
 
-    pub fn add_upper_oid_time(&mut self, mut time: u32, include: bool) {
+    pub fn add_upper_oid_time(&mut self, mut time: u32, include: bool) -> Result<()> {
         if !include {
-            time -= 1;
+            if let Some(value) = time.checked_sub(1) {
+                time = value;
+            } else {
+                illegal_arg("Where clause value overflow")?;
+            }
         }
         self.upper_key.extend_from_slice(&time.to_be_bytes());
-    }
-
-    pub fn add_lower_int(&mut self, mut value: i32, include: bool) {
-        if !include {
-            value += 1;
-        }
-        self.lower_key.extend_from_slice(&Index::get_int_key(value));
-    }
-
-    pub fn add_upper_int(&mut self, mut value: i32, include: bool) {
-        if !include {
-            value -= 1;
-        }
-        self.upper_key.extend_from_slice(&Index::get_int_key(value));
-    }
-
-    pub fn add_lower_long(&mut self, mut value: i64, include: bool) {
-        if !include {
-            value += 1;
-        }
-        self.lower_key
-            .extend_from_slice(&Index::get_long_key(value));
-    }
-
-    pub fn add_upper_long(&mut self, mut value: i64, include: bool) {
-        if !include {
-            value -= 1;
-        }
-        self.upper_key
-            .extend_from_slice(&Index::get_long_key(value));
-    }
-
-    pub fn add_lower_float(&mut self, value: f32, include: bool) {
-        let mut key = Index::get_float_key(value);
-        if !include {
-            let u32_key = u32::from_be_bytes(key.as_slice().try_into().unwrap());
-            key = u32::to_be_bytes(u32_key + 1).to_vec();
-        }
-        self.lower_key.extend_from_slice(&key);
-    }
-
-    pub fn add_upper_float(&mut self, value: f32, include: bool) {
-        let mut key = Index::get_float_key(value);
-        if !include {
-            let u32_key = u32::from_be_bytes(key.as_slice().try_into().unwrap());
-            key = u32::to_be_bytes(u32_key - 1).to_vec();
-        }
-        self.upper_key.extend_from_slice(&key);
-    }
-
-    pub fn add_lower_double(&mut self, value: f64, include: bool) {
-        let mut key = Index::get_double_key(value);
-        if !include {
-            let u64_key = u64::from_be_bytes(key.as_slice().try_into().unwrap());
-            key = u64::to_be_bytes(u64_key + 1).to_vec();
-        }
-        self.lower_key.extend_from_slice(&key);
-    }
-
-    pub fn add_upper_double(&mut self, value: f64, include: bool) {
-        let mut key = Index::get_double_key(value);
-        if !include {
-            let u64_key = u64::from_be_bytes(key.as_slice().try_into().unwrap());
-            key = u64::to_be_bytes(u64_key - 1).to_vec();
-        }
-        self.upper_key.extend_from_slice(&key);
+        Ok(())
     }
 
     pub fn add_bool(&mut self, value: Option<bool>) {
@@ -141,6 +85,116 @@ impl WhereClause {
         let bytes = &Index::get_bool_key(bool);
         self.lower_key.extend_from_slice(bytes);
         self.upper_key.extend_from_slice(bytes);
+    }
+
+    pub fn add_lower_int(&mut self, mut value: i32, include: bool) -> Result<()> {
+        if !include {
+            if let Some(new_value) = value.checked_add(1) {
+                value = new_value;
+            } else {
+                illegal_arg("Where clause value overflow")?;
+            }
+        }
+        self.lower_key.extend_from_slice(&Index::get_int_key(value));
+        Ok(())
+    }
+
+    pub fn add_upper_int(&mut self, mut value: i32, include: bool) -> Result<()> {
+        if !include {
+            if let Some(new_value) = value.checked_sub(1) {
+                value = new_value;
+            } else {
+                illegal_arg("Where clause value overflow")?;
+            }
+        }
+        self.upper_key.extend_from_slice(&Index::get_int_key(value));
+        Ok(())
+    }
+
+    pub fn add_lower_long(&mut self, mut value: i64, include: bool) -> Result<()> {
+        if !include {
+            if let Some(new_value) = value.checked_add(1) {
+                value = new_value;
+            } else {
+                illegal_arg("Where clause value overflow")?;
+            }
+        }
+        self.lower_key
+            .extend_from_slice(&Index::get_long_key(value));
+        Ok(())
+    }
+
+    pub fn add_upper_long(&mut self, mut value: i64, include: bool) -> Result<()> {
+        if !include {
+            if let Some(new_value) = value.checked_sub(1) {
+                value = new_value;
+            } else {
+                illegal_arg("Where clause value overflow")?;
+            }
+        }
+        self.upper_key
+            .extend_from_slice(&Index::get_long_key(value));
+        Ok(())
+    }
+
+    pub fn add_lower_float(&mut self, value: f32, include: bool) -> Result<()> {
+        let mut key = Index::get_float_key(value);
+        if !include {
+            let mut u32_key = u32::from_be_bytes(key.as_slice().try_into().unwrap());
+            if let Some(value) = u32_key.checked_add(1) {
+                u32_key = value;
+            } else {
+                illegal_arg("Where clause value overflow")?;
+            }
+            key = u32::to_be_bytes(u32_key).to_vec();
+        }
+        self.lower_key.extend_from_slice(&key);
+        Ok(())
+    }
+
+    pub fn add_upper_float(&mut self, value: f32, include: bool) -> Result<()> {
+        let mut key = Index::get_float_key(value);
+        if !include {
+            let mut u32_key = u32::from_be_bytes(key.as_slice().try_into().unwrap());
+            if let Some(value) = u32_key.checked_sub(1) {
+                u32_key = value;
+            } else {
+                illegal_arg("Where clause value overflow")?;
+            }
+            key = u32::to_be_bytes(u32_key).to_vec();
+        }
+        self.upper_key.extend_from_slice(&key);
+        Ok(())
+    }
+
+    pub fn add_lower_double(&mut self, value: f64, include: bool) -> Result<()> {
+        let mut key = Index::get_double_key(value);
+        if !include {
+            let mut u64_key = u64::from_be_bytes(key.as_slice().try_into().unwrap());
+            if let Some(value) = u64_key.checked_add(1) {
+                u64_key = value;
+            } else {
+                illegal_arg("Where clause value overflow")?;
+            }
+            key = u64::to_be_bytes(u64_key).to_vec();
+        }
+        self.lower_key.extend_from_slice(&key);
+        Ok(())
+    }
+
+    pub fn add_upper_double(&mut self, value: f64, include: bool) -> Result<()> {
+        let mut key = Index::get_double_key(value);
+        if !include {
+            let mut u64_key = u64::from_be_bytes(key.as_slice().try_into().unwrap());
+            if let Some(value) = u64_key.checked_sub(1) {
+                u64_key = value;
+            } else {
+                illegal_arg("Where clause value overflow")?;
+            }
+            key = u64::to_be_bytes(u64_key).to_vec();
+        }
+        self.upper_key.extend_from_slice(&key);
+        Ok(())
     }
 
     pub fn add_string_hash(&mut self, value: Option<&str>) {

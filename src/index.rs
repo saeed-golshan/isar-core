@@ -7,7 +7,6 @@ use crate::query::where_clause::WhereClause;
 use std::mem::transmute;
 use wyhash::wyhash;
 
-use crate::txn::IsarTxn;
 #[cfg(test)]
 use {crate::utils::debug::dump_db, hashbrown::HashSet};
 
@@ -43,6 +42,7 @@ impl Index {
         hash_value: bool,
         db: Db,
     ) -> Self {
+        assert!(index_type == IndexType::Secondary || index_type == IndexType::SecondaryDup);
         Index {
             prefix: u16::to_le_bytes(id),
             properties,
@@ -92,6 +92,10 @@ impl Index {
             .properties
             .iter()
             .flat_map(|property| match property.data_type {
+                DataType::Bool => {
+                    let value = property.get_bool(object);
+                    Self::get_bool_key(value)
+                }
                 DataType::Int => {
                     let value = property.get_int(object);
                     Self::get_int_key(value)
@@ -107,10 +111,6 @@ impl Index {
                 DataType::Double => {
                     let value = property.get_double(object);
                     Self::get_double_key(value)
-                }
-                DataType::Bool => {
-                    let value = property.get_bool(object);
-                    Self::get_bool_key(value)
                 }
                 DataType::String => {
                     if self.hash_value {
