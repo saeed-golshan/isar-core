@@ -194,17 +194,18 @@ mod tests {
         let col = isar.get_collection(0).unwrap();
 
         let mut wc = col.create_primary_where_clause();
-        wc.add_lower_oid_time(4, true);
+        wc.add_oid_time(4, u32::MAX);
         assert_eq!(
             execute_where_clauses(&isar, &[wc.clone()], false),
             vec![4, 5, 6]
         );
 
-        wc.add_upper_oid_time(5, false);
+        let mut wc = col.create_primary_where_clause();
+        wc.add_oid_time(4, 4);
         assert_eq!(execute_where_clauses(&isar, &[wc], false), vec![4]);
 
         let mut wc = col.create_secondary_where_clause(0).unwrap();
-        wc.add_lower_oid_time(u32::MAX, true);
+        wc.add_oid_time(u32::MAX, u32::MAX);
         assert_eq!(execute_where_clauses(&isar, &[wc], false), vec![]);
     }
 
@@ -214,17 +215,18 @@ mod tests {
         let col = isar.get_collection(0).unwrap();
 
         let mut wc = col.create_secondary_where_clause(0).unwrap();
-        wc.add_lower_int(2, true);
+        wc.add_int(2, i32::MAX);
         assert_eq!(
             execute_where_clauses(&isar, &[wc.clone()], false),
             vec![3, 4, 5, 6]
         );
 
-        wc.add_upper_int(3, false);
+        let mut wc = col.create_secondary_where_clause(0).unwrap();
+        wc.add_int(2, 2);
         assert_eq!(execute_where_clauses(&isar, &[wc], false), vec![3, 4]);
 
         let mut wc = col.create_secondary_where_clause(0).unwrap();
-        wc.add_lower_int(50, true);
+        wc.add_int(50, i32::MAX);
         assert_eq!(execute_where_clauses(&isar, &[wc], false), vec![]);
     }
 
@@ -234,17 +236,18 @@ mod tests {
         let col = isar.get_collection(0).unwrap();
 
         let mut wc = col.create_secondary_where_clause(1).unwrap();
-        wc.add_lower_int(3, false);
+        wc.add_int(4, i32::MAX);
         assert_eq!(
             execute_where_clauses(&isar, &[wc.clone()], false),
             vec![4, 5, 6]
         );
 
-        wc.add_upper_int(5, true);
+        let mut wc = col.create_secondary_where_clause(1).unwrap();
+        wc.add_int(4, 5);
         assert_eq!(execute_where_clauses(&isar, &[wc], false), vec![4, 5]);
 
         let mut wc = col.create_secondary_where_clause(0).unwrap();
-        wc.add_lower_int(50, true);
+        wc.add_int(50, i32::MAX);
         assert_eq!(execute_where_clauses(&isar, &[wc], false), vec![]);
     }
 
@@ -254,14 +257,14 @@ mod tests {
         let col = isar.get_collection(0).unwrap();
 
         let mut wc = col.create_secondary_where_clause(0).unwrap();
-        wc.add_lower_int(2, true);
+        wc.add_int(2, i32::MAX);
         assert_eq!(
             execute_where_clauses(&isar, &[wc.clone()], false),
             vec![3, 4, 5, 6]
         );
 
-        wc.add_upper_int(3, false);
-        assert_eq!(execute_where_clauses(&isar, &[wc], false), vec![3, 4]);
+        //wc.add_int(4, 5);
+        //assert_eq!(execute_where_clauses(&isar, &[wc], false), vec![4, 5]);
     }
 
     #[test]
@@ -270,12 +273,10 @@ mod tests {
         let col = isar.get_collection(0).unwrap();
 
         let mut wc1 = col.create_secondary_where_clause(0).unwrap();
-        wc1.add_lower_int(1, true);
-        wc1.add_upper_int(1, true);
+        wc1.add_int(1, 1);
 
         let mut wc2 = col.create_secondary_where_clause(0).unwrap();
-        wc2.add_lower_int(3, true);
-        wc2.add_upper_int(3, true);
+        wc2.add_int(3, 3);
         assert_eq!(
             execute_where_clauses(&isar, &[wc1, wc2], false),
             vec![1, 2, 5, 6]
@@ -288,13 +289,13 @@ mod tests {
         let col = isar.get_collection(0).unwrap();
 
         let mut wc1 = col.create_secondary_where_clause(0).unwrap();
-        wc1.add_lower_int(1, false);
+        wc1.add_int(2, i32::MAX);
 
         let mut wc2 = col.create_secondary_where_clause(0).unwrap();
-        wc2.add_upper_int(3, false);
+        wc2.add_int(2, 3);
 
-        let mut result = execute_where_clauses(&isar, &[wc1, wc2], true);
+        let mut result = execute_where_clauses(&isar, &[wc1.clone(), wc2, wc1], true);
         result.sort_unstable();
-        assert_eq!(result, vec![1, 2, 3, 4, 5, 6]);
+        assert_eq!(result, vec![3, 4, 5, 6]);
     }
 }

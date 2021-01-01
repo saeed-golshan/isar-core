@@ -7,7 +7,7 @@ use serde_repr::{Deserialize_repr, Serialize_repr};
 #[repr(u8)]
 pub enum DataType {
     // Alignment 1
-    Bool = 0,
+    Byte = 0,
 
     // Alignment 4
     Int = 1,
@@ -19,34 +19,32 @@ pub enum DataType {
 
     // Element Alignment 1
     String = 5,
-    Bytes = 6,
-    BoolList = 7,
+    ByteList = 6,
 
     // Element Alignment 4
-    IntList = 10,
-    FloatList = 11,
+    IntList = 7,
+    FloatList = 8,
 
     // Element Alignment 8
-    LongList = 12,
-    DoubleList = 13,
+    LongList = 9,
+    DoubleList = 10,
 
     // Offset List alignment 8
     // Element Alignment 1
-    StringList = 8,
-    BytesList = 9,
+    StringList = 11,
 }
 
 impl DataType {
     pub fn is_dynamic(&self) -> bool {
         !matches!(
             &self,
-            DataType::Int | DataType::Long | DataType::Float | DataType::Double | DataType::Bool
+            DataType::Int | DataType::Long | DataType::Float | DataType::Double | DataType::Byte
         )
     }
 
     pub fn get_static_size(&self) -> usize {
         match *self {
-            DataType::Bool => 1,
+            DataType::Byte => 1,
             DataType::Int | DataType::Float => 4,
             _ => 8,
         }
@@ -54,11 +52,7 @@ impl DataType {
 
     pub fn get_element_size(&self) -> usize {
         match *self {
-            DataType::String
-            | DataType::Bytes
-            | DataType::BoolList
-            | DataType::StringList
-            | DataType::BytesList => 1,
+            DataType::String | DataType::ByteList | DataType::StringList => 1,
             DataType::IntList | DataType::FloatList => 4,
             DataType::LongList | DataType::DoubleList => 8,
             _ => 0,

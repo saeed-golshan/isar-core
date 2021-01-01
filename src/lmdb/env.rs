@@ -61,6 +61,7 @@ impl Env {
         Ok(Txn { txn })
     }
 
+    #[allow(dead_code)]
     pub fn close(self) {
         unsafe {
             ffi::mdb_env_close(self.env);

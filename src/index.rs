@@ -8,7 +8,7 @@ use std::mem::transmute;
 use wyhash::wyhash;
 
 #[cfg(test)]
-use {crate::utils::debug::dump_db, hashbrown::HashSet};
+use {crate::txn::IsarTxn, crate::utils::debug::dump_db, hashbrown::HashSet};
 
 pub const MAX_STRING_INDEX_SIZE: usize = 1500;
 
@@ -92,9 +92,9 @@ impl Index {
             .properties
             .iter()
             .flat_map(|property| match property.data_type {
-                DataType::Bool => {
-                    let value = property.get_bool(object);
-                    Self::get_bool_key(value)
+                DataType::Byte => {
+                    let value = property.get_byte(object);
+                    Self::get_byte_key(value)
                 }
                 DataType::Int => {
                     let value = property.get_int(object);
@@ -113,11 +113,10 @@ impl Index {
                     Self::get_double_key(value)
                 }
                 DataType::String => {
+                    let value = property.get_string(object);
                     if self.hash_value {
-                        let value = property.get_bytes(object);
                         Self::get_string_hash_key(value)
                     } else {
-                        let value = property.get_bytes(object);
                         Self::get_string_value_key(value)
                     }
                 }
@@ -165,33 +164,31 @@ impl Index {
         }
     }
 
-    pub fn get_bool_key(value: u8) -> Vec<u8> {
-        match value {
-            Property::FALSE_BOOL => vec![1],
-            Property::TRUE_BOOL => vec![2],
-            _ => vec![0],
-        }
+    pub fn get_byte_key(value: u8) -> Vec<u8> {
+        vec![value]
     }
 
-    pub fn get_string_hash_key(value: Option<&[u8]>) -> Vec<u8> {
-        if let Some(value) = value {
-            let hash = wyhash(value, 0);
-            u64::to_be_bytes(hash).to_vec()
+    pub fn get_string_hash_key(value: Option<&str>) -> Vec<u8> {
+        let hash = if let Some(value) = value {
+            wyhash(value.as_bytes(), 0)
         } else {
-            vec![]
-        }
+            0
+        };
+        u64::to_be_bytes(hash).to_vec()
     }
 
-    pub fn get_string_value_key(value: Option<&[u8]>) -> Vec<u8> {
+    pub fn get_string_value_key(value: Option<&str>) -> Vec<u8> {
         if let Some(value) = value {
-            let mut bytes = vec![];
+            let value = value.as_bytes();
+            let mut bytes = vec![1];
             if value.len() >= MAX_STRING_INDEX_SIZE {
                 bytes.extend_from_slice(&value[0..MAX_STRING_INDEX_SIZE]);
+                bytes.push(0);
                 let hash = wyhash(&bytes, 0);
-                let hash_bytes = u64::to_le_bytes(hash);
-                bytes.extend_from_slice(&hash_bytes);
+                bytes.extend_from_slice(&u64::to_le_bytes(hash));
             } else {
                 bytes.extend_from_slice(value);
+                bytes.push(0);
             }
             bytes
         } else {
@@ -245,9 +242,7 @@ mod tests {
             };
         );
 
-        test_index!(Bool, Some(false), write_bool);
-        test_index!(Bool, Some(true), write_bool);
-        test_index!(Bool, None, write_bool);
+        test_index!(Byte, 123, write_byte);
         test_index!(Int, 123456i32, write_int);
         test_index!(Float, 123.456f32, write_float);
         test_index!(Long, 123456i64, write_long);
@@ -386,11 +381,10 @@ mod tests {
     }
 
     #[test]
-    fn test_get_bool_index_key() {
-        assert_eq!(Index::get_bool_key(Property::NULL_BOOL), vec![0]);
-        assert_eq!(Index::get_bool_key(12), vec![0]);
-        assert_eq!(Index::get_bool_key(Property::FALSE_BOOL), vec![1]);
-        assert_eq!(Index::get_bool_key(Property::TRUE_BOOL), vec![2]);
+    fn test_get_byte_index_key() {
+        assert_eq!(Index::get_byte_key(Property::NULL_BYTE), vec![0]);
+        assert_eq!(Index::get_byte_key(123), vec![123]);
+        assert_eq!(Index::get_byte_key(255), vec![255]);
     }
 
     #[test]
@@ -410,7 +404,7 @@ mod tests {
             (&long_str[..], vec![107, 96, 243, 122, 159, 148, 180, 244]),
         ];
         for (str, hash) in pairs {
-            assert_eq!(hash, Index::get_string_hash_key(Some(str.as_bytes())));
+            assert_eq!(hash, Index::get_string_hash_key(Some(str)));
         }
     }
 
@@ -418,9 +412,16 @@ mod tests {
     fn test_get_string_value_key() {
         //let long_str = (0..1500).map(|_| "a").collect::<String>();
 
-        let pairs: Vec<(&str, Vec<u8>)> = vec![("hello", b"hello".to_vec())];
+        let mut hello_bytes = vec![1];
+        hello_bytes.extend_from_slice(b"hello");
+        hello_bytes.push(0);
+        let pairs: Vec<(Option<&str>, Vec<u8>)> = vec![
+            (None, vec![0]),
+            (Some(""), vec![1, 0]),
+            (Some("hello"), hello_bytes),
+        ];
         for (str, hash) in pairs {
-            assert_eq!(hash, Index::get_string_value_key(Some(str.as_bytes())));
+            assert_eq!(hash, Index::get_string_value_key(str));
         }
     }
 }

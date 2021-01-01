@@ -67,13 +67,11 @@ pub struct Property {
 }
 
 impl Property {
+    pub const NULL_BYTE: u8 = u8::MIN;
     pub const NULL_INT: i32 = i32::MIN;
     pub const NULL_LONG: i64 = i64::MIN;
     pub const NULL_FLOAT: f32 = f32::NAN;
     pub const NULL_DOUBLE: f64 = f64::NAN;
-    pub const FALSE_BOOL: u8 = 0;
-    pub const TRUE_BOOL: u8 = 1;
-    pub const NULL_BOOL: u8 = 2;
 
     pub fn new(data_type: DataType, offset: usize) -> Self {
         Property { data_type, offset }
@@ -82,16 +80,19 @@ impl Property {
     #[inline]
     pub fn is_null(&self, object: &[u8]) -> bool {
         match self.data_type {
+            DataType::Byte => self.get_byte(object) == Self::NULL_BYTE,
             DataType::Int => self.get_int(object) == Self::NULL_INT,
             DataType::Long => self.get_long(object) == Self::NULL_LONG,
             DataType::Float => self.get_float(object).is_nan(),
             DataType::Double => self.get_double(object).is_nan(),
-            DataType::Bool => !matches!(
-                self.get_bool(object),
-                Property::TRUE_BOOL | Property::FALSE_BOOL
-            ),
             _ => self.get_length(object).is_none(),
         }
+    }
+
+    #[inline]
+    pub fn get_byte(&self, object: &[u8]) -> u8 {
+        assert_eq!(self.data_type, DataType::Byte);
+        object[self.offset]
     }
 
     #[inline]
@@ -120,12 +121,6 @@ impl Property {
         assert_eq!(self.data_type, DataType::Double);
         let bytes: [u8; 8] = object[self.offset..self.offset + 8].try_into().unwrap();
         f64::from_le_bytes(bytes)
-    }
-
-    #[inline]
-    pub fn get_bool(&self, object: &[u8]) -> u8 {
-        assert_eq!(self.data_type, DataType::Bool);
-        object[self.offset]
     }
 
     pub(crate) fn get_dynamic_position(&self, object: &[u8]) -> Option<DynamicPosition> {
@@ -168,14 +163,8 @@ impl Property {
     }
 
     #[inline]
-    pub fn get_bytes<'a>(&self, object: &'a [u8]) -> Option<&'a [u8]> {
-        assert!(self.data_type == DataType::Bytes || self.data_type == DataType::String);
-        let position = self.get_dynamic_position(object)?;
-        Some(self.get_list(object, position))
-    }
-
-    pub fn get_bool_list<'a>(&self, object: &'a [u8]) -> Option<&'a [u8]> {
-        assert_eq!(self.data_type, DataType::BoolList);
+    pub fn get_byte_list<'a>(&self, object: &'a [u8]) -> Option<&'a [u8]> {
+        assert_eq!(self.data_type, DataType::ByteList);
         let position = self.get_dynamic_position(object)?;
         Some(self.get_list(object, position))
     }
@@ -221,22 +210,6 @@ impl Property {
         Some(string_list)
     }
 
-    pub fn get_bytes_list<'a>(&self, object: &'a [u8]) -> Option<Vec<Option<&'a [u8]>>> {
-        assert_eq!(self.data_type, DataType::BytesList);
-        let positions = self.get_dynamic_positions(object)?;
-        let bytes_list = positions
-            .iter()
-            .map(|position| {
-                if position.is_null() {
-                    None
-                } else {
-                    Some(self.get_list(object, *position))
-                }
-            })
-            .collect_vec();
-        Some(bytes_list)
-    }
-
     fn get_list<'a, T>(&self, object: &'a [u8], data_position: DynamicPosition) -> &'a [T] {
         let list_length = data_position.length as usize;
         let list_offset = data_position.offset as usize;
@@ -253,14 +226,14 @@ impl Property {
 
     fn get_raw<'a>(&self, object: &'a [u8]) -> &'a [u8] {
         match self.data_type {
-            DataType::Bool => &object[self.offset..self.offset],
+            DataType::Byte => &object[self.offset..self.offset],
             DataType::Int | DataType::Float => &object[self.offset..self.offset + 4],
             DataType::Long | DataType::Double => &object[self.offset..self.offset + 8],
             _ => {
                 let pos = self.get_dynamic_position(object);
                 if let Some(pos) = pos {
                     match self.data_type {
-                        DataType::StringList | DataType::BytesList => &[],
+                        DataType::StringList => &[],
                         _ => {
                             let offset = pos.offset as usize;
                             let len_in_bytes =
@@ -279,7 +252,7 @@ impl Property {
         if self.data_type.is_dynamic() {
             let len = self.get_length(object).map_or(0, |len| (len + 1) as u32);
             hasher.write_u32(len);
-            if self.data_type == DataType::StringList || self.data_type == DataType::BytesList {
+            if self.data_type == DataType::StringList {
                 if let Some(positions) = self.get_dynamic_positions(object) {
                     for pos in positions {
                         if pos.is_null() {
@@ -301,27 +274,27 @@ mod tests {
     use crate::utils::debug::align;
 
     #[test]
-    fn test_get_bool() {
-        let property = Property::new(DataType::Bool, 0);
+    fn test_get_byte() {
+        let property = Property::new(DataType::Byte, 0);
 
-        let bytes = [Property::FALSE_BOOL];
-        assert_eq!(property.get_bool(&bytes), Property::FALSE_BOOL);
+        let bytes = [Property::NULL_BYTE];
+        assert_eq!(property.get_byte(&bytes), Property::NULL_BYTE);
 
-        let bytes = [Property::TRUE_BOOL];
-        assert_eq!(property.get_bool(&bytes), Property::TRUE_BOOL);
+        let bytes = [123];
+        assert_eq!(property.get_byte(&bytes), 123);
 
-        let null_bytes = [Property::NULL_BOOL];
-        assert_eq!(property.get_bool(&null_bytes), Property::NULL_BOOL);
+        let null_bytes = [255];
+        assert_eq!(property.get_byte(&null_bytes), 255);
     }
 
     #[test]
-    fn test_bool_is_null() {
-        let property = Property::new(DataType::Bool, 0);
+    fn test_byte_is_null() {
+        let property = Property::new(DataType::Byte, 0);
 
-        let null_bytes = [123];
+        let null_bytes = [0];
         assert!(property.is_null(&null_bytes));
 
-        let bytes = [0];
+        let bytes = [123];
         assert!(!property.is_null(&bytes));
 
         let bytes = [1];
@@ -447,38 +420,8 @@ mod tests {
     }
 
     #[test]
-    fn test_get_bytes() {
-        let property = Property::new(DataType::Bytes, 0);
-
-        let mut bytes = vec![8, 0, 0, 0, 5, 0, 0, 0];
-        bytes.extend_from_slice(b"hello");
-        assert_eq!(property.get_bytes(&bytes), Some(&b"hello"[..]));
-
-        let bytes = [8, 0, 0, 0, 0, 0, 0, 0];
-        assert_eq!(property.get_bytes(&bytes), Some(&[][..]));
-
-        let bytes = [0, 0, 0, 0, 0, 0, 0, 0];
-        assert_eq!(property.get_bytes(&bytes), None);
-    }
-
-    #[test]
-    fn test_bytes_is_null() {
-        let property = Property::new(DataType::Bytes, 0);
-
-        let mut bytes = vec![8, 0, 0, 0, 5, 0, 0, 0];
-        bytes.extend_from_slice(b"hello");
-        assert_eq!(property.is_null(&bytes), false);
-
-        let bytes = [8, 0, 0, 0, 0, 0, 0, 0];
-        assert_eq!(property.is_null(&bytes), false);
-
-        let bytes = [0, 0, 0, 0, 0, 0, 0, 0];
-        assert_eq!(property.is_null(&bytes), true);
-    }
-
-    #[test]
     fn test_get_length() {
-        let property = Property::new(DataType::BoolList, 0);
+        let property = Property::new(DataType::ByteList, 0);
 
         let bytes = align(&[8, 0, 0, 0, 1, 0, 0, 0]);
         assert_eq!(property.get_length(&bytes), Some(1));
@@ -489,7 +432,7 @@ mod tests {
 
     #[test]
     fn test_list_is_null() {
-        let property = Property::new(DataType::BoolList, 0);
+        let property = Property::new(DataType::ByteList, 0);
 
         let null_bytes = align(&[0, 0, 0, 0, 0, 0, 0, 0]);
         assert!(property.is_null(&null_bytes));
@@ -502,17 +445,17 @@ mod tests {
     }
 
     #[test]
-    fn test_get_bool_list() {
-        let property = Property::new(DataType::BoolList, 0);
+    fn test_get_byte_list() {
+        let property = Property::new(DataType::ByteList, 0);
 
         let bytes = align(&[8, 0, 0, 0, 5, 0, 0, 0, 1, 0, 2, 1, 5]);
-        assert_eq!(property.get_bool_list(&bytes), Some(&[1, 0, 2, 1, 5][..]));
+        assert_eq!(property.get_byte_list(&bytes), Some(&[1, 0, 2, 1, 5][..]));
 
         let bytes = [8, 0, 0, 0, 0, 0, 0, 0];
-        assert_eq!(property.get_bool_list(&bytes), Some(&[][..]));
+        assert_eq!(property.get_byte_list(&bytes), Some(&[][..]));
 
         let bytes = align(&[0, 0, 0, 0, 0, 0, 0, 0]);
-        assert_eq!(property.get_bool_list(&bytes), None);
+        assert_eq!(property.get_byte_list(&bytes), None);
     }
 
     #[test]
@@ -598,26 +541,5 @@ mod tests {
 
         let bytes = [0, 0, 0, 0, 0, 0, 0, 0];
         assert_eq!(property.get_string_list(&bytes), None);
-    }
-
-    #[test]
-    fn test_get_bytes_list() {
-        let property = Property::new(DataType::BytesList, 0);
-
-        let mut bytes = vec![
-            8, 0, 0, 0, 3, 0, 0, 0, 32, 0, 0, 0, 5, 0, 0, 0, 37, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0,
-        ];
-        bytes.extend_from_slice(b"hello");
-        assert_eq!(
-            property.get_bytes_list(&bytes),
-            Some(vec![Some(&b"hello"[..]), Some(&[][..]), None])
-        );
-
-        let bytes = [8, 0, 0, 0, 0, 0, 0, 0];
-        assert_eq!(property.get_bytes_list(&bytes), Some(vec![]));
-
-        let bytes = [0, 0, 0, 0, 0, 0, 0, 0];
-        assert_eq!(property.get_bytes_list(&bytes), None);
     }
 }

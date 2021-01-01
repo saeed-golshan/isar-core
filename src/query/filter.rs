@@ -1,5 +1,4 @@
 use crate::error::{illegal_arg, Result};
-use crate::object::data_type::DataType;
 use crate::object::property::Property;
 use enum_dispatch::enum_dispatch;
 
@@ -12,7 +11,7 @@ pub enum Case {
 #[enum_dispatch]
 pub enum Filter {
     IsNull(IsNull),
-    Bool(BoolEqualTo),
+    Byte(ByteBetween),
     Int(IntBetween),
     Long(LongBetween),
     Float(FloatBetween),
@@ -57,28 +56,6 @@ impl IsNull {
     }
 }
 
-pub struct BoolEqualTo {
-    value: bool,
-    property: Property,
-}
-
-impl Condition for BoolEqualTo {
-    fn evaluate(&self, object: &[u8]) -> bool {
-        let val = self.property.get_bool(object) == Property::TRUE_BOOL;
-        self.value == val
-    }
-}
-
-impl BoolEqualTo {
-    pub fn filter(property: Property, value: bool) -> Result<Filter> {
-        if property.data_type == DataType::Bool {
-            Ok(Filter::Bool(Self { property, value }))
-        } else {
-            illegal_arg("Property does not support this filter.")
-        }
-    }
-}
-
 #[macro_export]
 macro_rules! primitive_filter (
     ($between_name:ident, $data_type:ident, $type:ty, $prop_accessor:ident) => {
@@ -111,6 +88,7 @@ macro_rules! primitive_filter (
     }
 );
 
+primitive_filter!(ByteBetween, Byte, u8, get_byte);
 primitive_filter!(IntBetween, Int, i32, get_int);
 primitive_filter!(LongBetween, Long, i64, get_long);
 primitive_filter!(FloatBetween, Float, f32, get_float);

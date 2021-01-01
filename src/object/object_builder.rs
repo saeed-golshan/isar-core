@@ -1,10 +1,8 @@
 use crate::object::data_type::DataType;
 use crate::object::object_id::ObjectId;
 use crate::object::object_info::ObjectInfo;
-use crate::object::property::Property;
 use crate::utils::aligned_vec;
 use core::mem;
-use itertools::Itertools;
 use std::slice::from_raw_parts;
 
 pub struct ObjectBuilder<'a> {
@@ -41,16 +39,15 @@ impl<'a> ObjectBuilder<'a> {
         }
         self.object[offset..(offset + bytes.len())].clone_from_slice(&bytes[..]);
     }
+    pub fn write_byte(&mut self, value: u8) {
+        let (offset, data_type) = self.get_next_property();
+        assert_eq!(data_type, DataType::Byte);
+        self.write_at(offset, &[value]);
+    }
 
     pub fn write_int(&mut self, value: i32) {
         let (offset, data_type) = self.get_next_property();
         assert_eq!(data_type, DataType::Int);
-        self.write_at(offset, &value.to_le_bytes());
-    }
-
-    pub fn write_long(&mut self, value: i64) {
-        let (offset, data_type) = self.get_next_property();
-        assert_eq!(data_type, DataType::Long);
         self.write_at(offset, &value.to_le_bytes());
     }
 
@@ -60,16 +57,16 @@ impl<'a> ObjectBuilder<'a> {
         self.write_at(offset, &value.to_le_bytes());
     }
 
+    pub fn write_long(&mut self, value: i64) {
+        let (offset, data_type) = self.get_next_property();
+        assert_eq!(data_type, DataType::Long);
+        self.write_at(offset, &value.to_le_bytes());
+    }
+
     pub fn write_double(&mut self, value: f64) {
         let (offset, data_type) = self.get_next_property();
         assert_eq!(data_type, DataType::Double);
         self.write_at(offset, &value.to_le_bytes());
-    }
-
-    pub fn write_bool(&mut self, value: Option<bool>) {
-        let (offset, data_type) = self.get_next_property();
-        assert_eq!(data_type, DataType::Bool);
-        self.write_at(offset, &Self::bool_to_byte(value).to_le_bytes());
     }
 
     pub fn write_string(&mut self, value: Option<&str>) {
@@ -78,9 +75,9 @@ impl<'a> ObjectBuilder<'a> {
         self.write_list(offset, value.map(|s| s.as_bytes()));
     }
 
-    pub fn write_bytes(&mut self, value: Option<&[u8]>) {
+    pub fn write_byte_list(&mut self, value: Option<&[u8]>) {
         let (offset, data_type) = self.get_next_property();
-        assert_eq!(data_type, DataType::Bytes);
+        assert_eq!(data_type, DataType::ByteList);
         self.write_list(offset, value);
     }
 
@@ -90,15 +87,15 @@ impl<'a> ObjectBuilder<'a> {
         self.write_list(offset, value);
     }
 
-    pub fn write_long_list(&mut self, value: Option<&[i64]>) {
-        let (offset, data_type) = self.get_next_property();
-        assert_eq!(data_type, DataType::LongList);
-        self.write_list(offset, value);
-    }
-
     pub fn write_float_list(&mut self, value: Option<&[f32]>) {
         let (offset, data_type) = self.get_next_property();
         assert_eq!(data_type, DataType::FloatList);
+        self.write_list(offset, value);
+    }
+
+    pub fn write_long_list(&mut self, value: Option<&[i64]>) {
+        let (offset, data_type) = self.get_next_property();
+        assert_eq!(data_type, DataType::LongList);
         self.write_list(offset, value);
     }
 
@@ -106,17 +103,6 @@ impl<'a> ObjectBuilder<'a> {
         let (offset, data_type) = self.get_next_property();
         assert_eq!(data_type, DataType::DoubleList);
         self.write_list(offset, value);
-    }
-
-    pub fn write_bool_list(&mut self, value: Option<&[Option<bool>]>) {
-        let (offset, data_type) = self.get_next_property();
-        assert_eq!(data_type, DataType::BoolList);
-        if let Some(value) = value {
-            let list = value.iter().map(|b| Self::bool_to_byte(*b)).collect_vec();
-            self.write_list(offset, Some(&list));
-        } else {
-            self.write_list::<u8>(offset, None);
-        }
     }
 
     pub fn write_string_list(&mut self) {
@@ -150,14 +136,6 @@ impl<'a> ObjectBuilder<'a> {
             self.write_at(offset, &0u64.to_le_bytes());
         }
     }
-
-    fn bool_to_byte(value: Option<bool>) -> u8 {
-        match value {
-            Some(false) => Property::FALSE_BOOL,
-            Some(true) => Property::TRUE_BOOL,
-            None => Property::NULL_BOOL,
-        }
-    }
 }
 
 pub struct ObjectBuilderResult {
@@ -172,7 +150,6 @@ impl ObjectBuilderResult {
 
 #[cfg(test)]
 mod tests {
-    use crate::object::property::Property;
     use crate::utils::debug::SlicePad;
     use crate::{col, isar};
 
@@ -262,31 +239,31 @@ mod tests {
     }
 
     #[test]
-    pub fn test_write_bool() {
-        builder!(b, oi, Bool);
-        b.write_bool(None);
+    pub fn test_write_byte() {
+        builder!(b, oi, Byte);
+        b.write_byte(0);
         let result = b.finish();
         oi.verify_object(result.as_bytes());
-        assert_eq!(result.as_bytes(), &[Property::NULL_BOOL, 0]);
+        assert_eq!(result.as_bytes(), &[0, 0]);
 
-        builder!(b, oi, Bool);
-        b.write_bool(Some(false));
+        builder!(b, oi, Byte);
+        b.write_byte(123);
         let result = b.finish();
         oi.verify_object(result.as_bytes());
-        assert_eq!(result.as_bytes(), &[Property::FALSE_BOOL, 0]);
+        assert_eq!(result.as_bytes(), &[123, 0]);
 
-        builder!(b, oi, Bool);
-        b.write_bool(Some(true));
+        builder!(b, oi, Byte);
+        b.write_byte(255);
         let result = b.finish();
         oi.verify_object(result.as_bytes());
-        assert_eq!(result.as_bytes(), &[Property::TRUE_BOOL, 0]);
+        assert_eq!(result.as_bytes(), &[255, 0]);
     }
 
     #[test]
     #[should_panic]
-    pub fn test_write_bool_wrong_type() {
+    pub fn test_write_byte_wrong_type() {
         builder!(b, _oi, String);
-        b.write_bool(Some(true));
+        b.write_byte(123);
     }
 
     #[test]

@@ -57,7 +57,7 @@ impl RawObject {
     }
 
     pub fn get_length(&self) -> u32 {
-        self.get_length()
+        self.data_length
     }
 
     pub fn clear(&mut self) {

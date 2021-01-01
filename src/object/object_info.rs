@@ -67,7 +67,7 @@ impl ObjectInfo {
                 }
 
                 if property.data_type != DataType::StringList
-                    && property.data_type != DataType::BytesList
+                    && property.data_type != DataType::ByteList
                 {
                     dynamic_offset += pos.length as usize * property.data_type.get_element_size();
                 } else {
@@ -101,13 +101,13 @@ mod tests {
     #[test]
     fn test_calculate_static_size() {
         let properties1 = vec![
-            Property::new(DataType::Bool, 0),
+            Property::new(DataType::Byte, 0),
             Property::new(DataType::Int, 2),
         ];
         let properties2 = vec![
-            Property::new(DataType::Bool, 0),
+            Property::new(DataType::Byte, 0),
             Property::new(DataType::String, 1),
-            Property::new(DataType::Bytes, 9),
+            Property::new(DataType::ByteList, 9),
             Property::new(DataType::Double, 9),
         ];
 

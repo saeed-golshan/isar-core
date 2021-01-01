@@ -55,7 +55,6 @@ pub unsafe extern "C" fn isar_delete(
 pub unsafe extern "C" fn isar_clear(
     collection: Option<&IsarCollection>,
     txn: Option<&mut IsarTxn>,
-    object: &RawObject,
 ) -> u8 {
     isar_try! {
         let collection = collection.unwrap();

@@ -23,7 +23,9 @@ pub unsafe extern "C" fn isar_txn_commit(txn: *mut IsarTxn) -> u8 {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn isar_txn_abort(txn: *mut IsarTxn) {
-    let txn = Box::from_raw(txn);
-    txn.abort();
+pub unsafe extern "C" fn isar_txn_abort(txn: *mut IsarTxn) -> u8 {
+    isar_try! {
+        let txn = Box::from_raw(txn);
+        txn.abort()?;
+    }
 }

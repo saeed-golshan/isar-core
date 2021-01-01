@@ -250,23 +250,23 @@ mod tests {
     #[test]
     fn test_add_index_with_illegal_data_type() {
         let mut col = CollectionSchema::new("col");
-        col.add_property("bool", DataType::Bool).unwrap();
+        col.add_property("byte", DataType::Byte).unwrap();
         col.add_property("int", DataType::Int).unwrap();
         col.add_property("float", DataType::Float).unwrap();
         col.add_property("long", DataType::Long).unwrap();
         col.add_property("double", DataType::Double).unwrap();
         col.add_property("str", DataType::String).unwrap();
-        col.add_property("bytes", DataType::Bytes).unwrap();
-        col.add_property("intlist", DataType::IntList).unwrap();
+        col.add_property("byteList", DataType::ByteList).unwrap();
+        col.add_property("intList", DataType::IntList).unwrap();
 
+        col.add_index(&["byte"], false, false).unwrap();
         col.add_index(&["int"], false, false).unwrap();
-        col.add_index(&["long"], false, false).unwrap();
         col.add_index(&["float"], false, false).unwrap();
+        col.add_index(&["long"], false, false).unwrap();
         col.add_index(&["double"], false, false).unwrap();
-        col.add_index(&["bool"], false, false).unwrap();
         col.add_index(&["str"], false, false).unwrap();
-        assert!(col.add_index(&["bytes"], false, false).is_err());
-        assert!(col.add_index(&["intlist"], false, false).is_err());
+        assert!(col.add_index(&["byteList"], false, false).is_err());
+        assert!(col.add_index(&["intList"], false, false).is_err());
     }
 
     #[test]
@@ -319,20 +319,20 @@ mod tests {
         }
 
         let mut col = CollectionSchema::new("col");
-        col.add_property("bool", DataType::Bool).unwrap();
+        col.add_property("byte", DataType::Byte).unwrap();
         col.add_property("int", DataType::Int).unwrap();
         col.add_property("double", DataType::Double).unwrap();
         assert_eq!(get_offsets(col), vec![0, 2, 10]);
 
         let mut col = CollectionSchema::new("col");
-        col.add_property("bool1", DataType::Bool).unwrap();
-        col.add_property("bool2", DataType::Bool).unwrap();
-        col.add_property("bool3", DataType::Bool).unwrap();
+        col.add_property("byte1", DataType::Byte).unwrap();
+        col.add_property("byte2", DataType::Byte).unwrap();
+        col.add_property("byte3", DataType::Byte).unwrap();
         col.add_property("str", DataType::String).unwrap();
         assert_eq!(get_offsets(col), vec![0, 1, 2, 10]);
 
         let mut col = CollectionSchema::new("col");
-        col.add_property("bytes", DataType::Bytes).unwrap();
+        col.add_property("byteList", DataType::ByteList).unwrap();
         col.add_property("intList", DataType::IntList).unwrap();
         col.add_property("doubleList", DataType::DoubleList)
             .unwrap();
@@ -342,9 +342,9 @@ mod tests {
     #[test]
     fn update_with_no_existing_collection() {
         let mut col = CollectionSchema::new("col");
-        col.add_property("bool", DataType::Bool).unwrap();
+        col.add_property("byte", DataType::Byte).unwrap();
         col.add_property("int", DataType::Int).unwrap();
-        col.add_index(&["bool"], true, false).unwrap();
+        col.add_index(&["byte"], true, false).unwrap();
         col.add_index(&["int"], true, false).unwrap();
 
         let mut counter = 0;
@@ -368,9 +368,9 @@ mod tests {
         };
 
         let mut col1 = CollectionSchema::new("col");
-        col1.add_property("bool", DataType::Bool).unwrap();
+        col1.add_property("byte", DataType::Byte).unwrap();
         col1.add_property("int", DataType::Int).unwrap();
-        col1.add_index(&["bool"], true, false).unwrap();
+        col1.add_index(&["byte"], true, false).unwrap();
         col1.add_index(&["int"], true, false).unwrap();
 
         col1.update_with_existing_collections(&[], &mut get_id);
@@ -379,10 +379,10 @@ mod tests {
         assert_eq!(col1.id, Some(3));
 
         let mut col2 = CollectionSchema::new("col");
-        col2.add_property("bool", DataType::Bool).unwrap();
+        col2.add_property("byte", DataType::Byte).unwrap();
         col2.add_property("int", DataType::Int).unwrap();
-        col2.add_index(&["bool"], true, false).unwrap();
-        col2.add_index(&["int", "bool"], true, false).unwrap();
+        col2.add_index(&["byte"], true, false).unwrap();
+        col2.add_index(&["int", "byte"], true, false).unwrap();
 
         col2.update_with_existing_collections(&[col1], &mut get_id);
         assert_eq!(col2.indexes[0].id, Some(1));

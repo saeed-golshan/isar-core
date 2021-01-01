@@ -95,7 +95,7 @@ impl Db {
         }
     }
 
-    fn put_internal<'a>(
+    fn put_internal(
         &self,
         txn: &Txn,
         key: &[u8],
@@ -249,7 +249,7 @@ mod tests {
             let mut cur = db.cursor(&txn).unwrap();
             cur.move_to_first().unwrap();
             let iter = cur.iter();
-            let vals: Result<Vec<&[u8]>> = iter.map_results(|x| x.1).collect();
+            let vals: Result<Vec<&[u8]>> = iter.map_ok(|x| x.1).collect();
             assert_eq!(
                 vals.unwrap(),
                 vec![b"val1", b"val3", b"val7", b"val8", b"val9"]
