@@ -39,134 +39,52 @@ pub unsafe extern "C" fn isar_wc_oid(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn isar_wc_add_lower_oid_time(
+pub unsafe extern "C" fn isar_wc_add_oid_time(
     where_clause: Option<&mut WhereClause>,
-    time: u32,
-    include: bool,
+    lower: u32,
+    upper: u32,
+) {
+    where_clause.unwrap().add_oid_time(lower, upper);
+}
+
+#[no_mangle]
+pub extern "C" fn isar_wc_add_byte(where_clause: Option<&mut WhereClause>, lower: u8, upper: u8) {
+    where_clause.unwrap().add_byte(lower, upper);
+}
+
+#[no_mangle]
+pub extern "C" fn isar_wc_add_int(where_clause: Option<&mut WhereClause>, lower: i32, upper: i32) {
+    where_clause.unwrap().add_int(lower, upper);
+}
+
+#[no_mangle]
+pub extern "C" fn isar_wc_add_float(
+    where_clause: Option<&mut WhereClause>,
+    lower: f32,
+    include_lower: bool,
+    upper: f32,
+    include_upper: bool,
 ) -> u8 {
     isar_try! {
-        where_clause.unwrap().add_lower_oid_time(time, include)?;
+        where_clause.unwrap().add_float(lower, include_lower,upper,include_upper)?;
     }
 }
 
 #[no_mangle]
-pub extern "C" fn isar_wc_add_lower_byte(
-    where_clause: Option<&mut WhereClause>,
-    value: u8,
-    include: bool,
-) -> u8 {
-    isar_try! {
-        where_clause.unwrap().add_lower_byte(value,include)?;
-    }
+pub extern "C" fn isar_wc_add_long(where_clause: Option<&mut WhereClause>, lower: i64, upper: i64) {
+    where_clause.unwrap().add_long(lower, upper);
 }
 
 #[no_mangle]
-pub extern "C" fn isar_wc_add_upper_byte(
+pub extern "C" fn isar_wc_add_double(
     where_clause: Option<&mut WhereClause>,
-    value: u8,
-    include: bool,
+    lower: f64,
+    include_lower: bool,
+    upper: f64,
+    include_upper: bool,
 ) -> u8 {
     isar_try! {
-        where_clause.unwrap().add_upper_byte(value,include)?;
-    }
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn isar_wc_add_upper_oid(
-    where_clause: Option<&mut WhereClause>,
-    time: u32,
-    include: bool,
-) -> u8 {
-    isar_try! {
-        where_clause.unwrap().add_upper_oid_time(time, include)?;
-    }
-}
-
-#[no_mangle]
-pub extern "C" fn isar_wc_add_lower_int(
-    where_clause: Option<&mut WhereClause>,
-    value: i32,
-    include: bool,
-) -> u8 {
-    isar_try! {
-        where_clause.unwrap().add_lower_int(value, include)?;
-    }
-}
-
-#[no_mangle]
-pub extern "C" fn isar_wc_add_upper_int(
-    where_clause: Option<&mut WhereClause>,
-    value: i32,
-    include: bool,
-) -> u8 {
-    isar_try! {
-        where_clause.unwrap().add_upper_int(value, include)?;
-    }
-}
-
-#[no_mangle]
-pub extern "C" fn isar_wc_add_lower_long(
-    where_clause: Option<&mut WhereClause>,
-    value: i64,
-    include: bool,
-) -> u8 {
-    isar_try! {
-        where_clause.unwrap().add_lower_long(value, include)?;
-    }
-}
-
-#[no_mangle]
-pub extern "C" fn isar_wc_add_upper_long(
-    where_clause: Option<&mut WhereClause>,
-    value: i64,
-    include: bool,
-) -> u8 {
-    isar_try! {
-        where_clause.unwrap().add_upper_long(value, include)?;
-    }
-}
-
-#[no_mangle]
-pub extern "C" fn isar_wc_add_lower_float(
-    where_clause: Option<&mut WhereClause>,
-    value: f32,
-    include: bool,
-) -> u8 {
-    isar_try! {
-        where_clause.unwrap().add_lower_float(value, include)?;
-    }
-}
-
-#[no_mangle]
-pub extern "C" fn isar_wc_add_upper_float(
-    where_clause: Option<&mut WhereClause>,
-    value: f32,
-    include: bool,
-) -> u8 {
-    isar_try! {
-        where_clause.unwrap().add_upper_float(value, include)?;
-    }
-}
-
-#[no_mangle]
-pub extern "C" fn isar_wc_add_lower_double(
-    where_clause: Option<&mut WhereClause>,
-    value: f64,
-    include: bool,
-) -> u8 {
-    isar_try! {
-        where_clause.unwrap().add_lower_double(value, include)?;
-    }
-}
-
-#[no_mangle]
-pub extern "C" fn isar_wc_add_upper_double(
-    where_clause: Option<&mut WhereClause>,
-    value: f64,
-    include: bool,
-) -> u8 {
-    isar_try! {
-        where_clause.unwrap().add_upper_double(value, include)?;
+        where_clause.unwrap().add_double(lower, include_lower,upper,include_upper)?;
     }
 }
 
@@ -186,27 +104,19 @@ pub unsafe extern "C" fn isar_wc_add_string_hash(
 #[no_mangle]
 pub unsafe extern "C" fn isar_wc_add_lower_string_value(
     where_clause: Option<&mut WhereClause>,
-    value: *const c_char,
+    lower: *const c_char,
+    upper: *const c_char,
     include: bool,
 ) {
-    let str = if !value.is_null() {
-        Some(from_c_str(value).unwrap())
+    let lower_str = if !lower.is_null() {
+        Some(from_c_str(lower).unwrap())
     } else {
         None
     };
-    where_clause.unwrap().add_lower_string_value(str, include);
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn isar_wc_add_upper_string_value(
-    where_clause: Option<&mut WhereClause>,
-    value: *const c_char,
-    include: bool,
-) {
-    let str = if !value.is_null() {
-        Some(from_c_str(value).unwrap())
+    let upper_str = if !upper.is_null() {
+        Some(from_c_str(upper).unwrap())
     } else {
         None
     };
-    where_clause.unwrap().add_upper_string_value(str, include);
+    where_clause.unwrap().add_string_value(lower_str, upper_str);
 }
