@@ -1,14 +1,14 @@
-use crate::error::{illegal_state, Result};
+use crate::error::Result;
 use crate::index::{Index, IndexType};
 use crate::lmdb::cursor::{Cursor, CursorIterator};
 use crate::lmdb::KeyVal;
 use crate::object::object_id::ObjectId;
-use std::ops::{Add, AddAssign};
 
 #[derive(Clone)]
 pub struct WhereClause {
     lower_key: Vec<u8>,
     upper_key: Vec<u8>,
+    prefix_len: usize,
     pub(super) index_type: IndexType,
 }
 
@@ -17,6 +17,7 @@ impl WhereClause {
         WhereClause {
             lower_key: prefix.to_vec(),
             upper_key: prefix.to_vec(),
+            prefix_len: prefix.len(),
             index_type,
         }
     }
@@ -24,7 +25,8 @@ impl WhereClause {
     pub fn empty() -> Self {
         WhereClause {
             lower_key: vec![0],
-            upper_key: vec![1],
+            upper_key: vec![10],
+            prefix_len: 0,
             index_type: IndexType::Primary,
         }
     }
@@ -52,7 +54,7 @@ impl WhereClause {
     pub(crate) fn try_exclude(&mut self, include_lower: bool, include_upper: bool) -> bool {
         if !include_lower {
             let mut increased = false;
-            for i in 0..self.lower_key.len() {
+            for i in (self.prefix_len..self.lower_key.len()).rev() {
                 if let Some(added) = self.lower_key[i].checked_add(1) {
                     self.lower_key[i] = added;
                     increased = true;
@@ -65,8 +67,9 @@ impl WhereClause {
         }
         if !include_upper {
             let mut decreased = false;
-            for i in 0..self.upper_key.len() {
+            for i in (self.prefix_len..self.upper_key.len()).rev() {
                 if let Some(subtracted) = self.upper_key[i].checked_sub(1) {
+                    eprintln!("before {}, after {}", self.upper_key[i], subtracted);
                     self.upper_key[i] = subtracted;
                     decreased = true;
                     break;
