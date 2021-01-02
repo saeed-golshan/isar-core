@@ -1,9 +1,9 @@
-use crate::error::{illegal_arg, Result};
+use crate::error::{illegal_state, Result};
 use crate::index::{Index, IndexType};
 use crate::lmdb::cursor::{Cursor, CursorIterator};
 use crate::lmdb::KeyVal;
 use crate::object::object_id::ObjectId;
-use std::convert::TryInto;
+use std::ops::{Add, AddAssign};
 
 #[derive(Clone)]
 pub struct WhereClause {
@@ -18,6 +18,14 @@ impl WhereClause {
             lower_key: prefix.to_vec(),
             upper_key: prefix.to_vec(),
             index_type,
+        }
+    }
+
+    pub fn empty() -> Self {
+        WhereClause {
+            lower_key: vec![0],
+            upper_key: vec![1],
+            index_type: IndexType::Primary,
         }
     }
 
@@ -39,6 +47,36 @@ impl WhereClause {
             key = &key[0..self.upper_key.len()]
         }
         upper_key >= key
+    }
+
+    pub(crate) fn try_exclude(&mut self, include_lower: bool, include_upper: bool) -> bool {
+        if !include_lower {
+            let mut increased = false;
+            for i in 0..self.lower_key.len() {
+                if let Some(added) = self.lower_key[i].checked_add(1) {
+                    self.lower_key[i] = added;
+                    increased = true;
+                    break;
+                }
+            }
+            if !increased {
+                return false;
+            }
+        }
+        if !include_upper {
+            let mut decreased = false;
+            for i in 0..self.upper_key.len() {
+                if let Some(subtracted) = self.upper_key[i].checked_sub(1) {
+                    self.upper_key[i] = subtracted;
+                    decreased = true;
+                    break;
+                }
+            }
+            if !decreased {
+                return false;
+            }
+        }
+        true
     }
 
     /*pub(super) fn merge(&self, other: &WhereClause) -> Option<WhereClause> {
@@ -68,75 +106,25 @@ impl WhereClause {
         self.upper_key.extend_from_slice(&Index::get_int_key(upper));
     }
 
-    pub fn add_float(
-        &mut self,
-        lower: f32,
-        include_lower: bool,
-        upper: f32,
-        include_upper: bool,
-    ) -> Result<()> {
-        let mut lower_key = Index::get_float_key(lower);
-        let mut upper_key = Index::get_float_key(upper);
-        if !include_lower {
-            let mut u32_key = u32::from_be_bytes(lower_key.as_slice().try_into().unwrap());
-            if let Some(value) = u32_key.checked_add(1) {
-                u32_key = value;
-            } else {
-                illegal_arg("Where clause value overflow")?;
-            }
-            lower_key = u32::to_be_bytes(u32_key).to_vec();
-        }
-        if !include_upper {
-            let mut u32_key = u32::from_be_bytes(upper_key.as_slice().try_into().unwrap());
-            if let Some(value) = u32_key.checked_add(1) {
-                u32_key = value;
-            } else {
-                illegal_arg("Where clause value overflow")?;
-            }
-            upper_key = u32::to_be_bytes(u32_key).to_vec();
-        }
-        self.lower_key.extend_from_slice(&lower_key);
-        self.upper_key.extend_from_slice(&upper_key);
-        Ok(())
+    pub fn add_float(&mut self, lower: f32, upper: f32) {
+        self.lower_key
+            .extend_from_slice(&Index::get_float_key(lower));
+        self.upper_key
+            .extend_from_slice(&Index::get_float_key(upper));
     }
 
     pub fn add_long(&mut self, lower: i64, upper: i64) {
         self.lower_key
             .extend_from_slice(&Index::get_long_key(lower));
-        self.lower_key
+        self.upper_key
             .extend_from_slice(&Index::get_long_key(upper));
     }
 
-    pub fn add_double(
-        &mut self,
-        lower: f64,
-        include_lower: bool,
-        upper: f64,
-        include_upper: bool,
-    ) -> Result<()> {
-        let mut lower_key = Index::get_double_key(lower);
-        let mut upper_key = Index::get_double_key(upper);
-        if !include_lower {
-            let mut u64_key = u64::from_be_bytes(lower_key.as_slice().try_into().unwrap());
-            if let Some(value) = u64_key.checked_add(1) {
-                u64_key = value;
-            } else {
-                illegal_arg("Where clause value overflow")?;
-            }
-            lower_key = u64::to_be_bytes(u64_key).to_vec();
-        }
-        if !include_upper {
-            let mut u64_key = u64::from_be_bytes(upper_key.as_slice().try_into().unwrap());
-            if let Some(value) = u64_key.checked_add(1) {
-                u64_key = value;
-            } else {
-                illegal_arg("Where clause value overflow")?;
-            }
-            upper_key = u64::to_be_bytes(u64_key).to_vec();
-        }
-        self.lower_key.extend_from_slice(&lower_key);
-        self.upper_key.extend_from_slice(&upper_key);
-        Ok(())
+    pub fn add_double(&mut self, lower: f64, upper: f64) {
+        self.lower_key
+            .extend_from_slice(&Index::get_double_key(lower));
+        self.upper_key
+            .extend_from_slice(&Index::get_double_key(upper));
     }
 
     pub fn add_string_hash(&mut self, value: Option<&str>) {

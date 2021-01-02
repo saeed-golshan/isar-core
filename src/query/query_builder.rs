@@ -45,14 +45,21 @@ impl QueryBuilder {
         }
     }
 
-    pub fn add_where_clause(&mut self, wc: WhereClause) -> Result<()> {
+    pub fn add_where_clause(
+        &mut self,
+        mut wc: WhereClause,
+        include_lower: bool,
+        include_upper: bool,
+    ) {
+        if !wc.try_exclude(include_lower, include_upper) {
+            wc = WhereClause::empty();
+        }
         if wc.index_type == IndexType::Secondary {
             self.has_secondary_where = true;
         } else if wc.index_type == IndexType::SecondaryDup {
             self.has_secondary_dup_where = true;
         }
         self.where_clauses.push(wc);
-        Ok(())
     }
 
     pub fn set_filter(&mut self, filter: Filter) {
@@ -119,7 +126,16 @@ impl QueryBuilder {
         let where_clauses = if self.where_clauses.is_empty() {
             vec![self.primary_where_clause]
         } else {
-            self.where_clauses
+            let filtered = self
+                .where_clauses
+                .into_iter()
+                .filter(|wc| !wc.is_empty())
+                .collect_vec();
+            if filtered.is_empty() {
+                vec![WhereClause::empty()]
+            } else {
+                filtered
+            }
         };
         Query::new(
             where_clauses,

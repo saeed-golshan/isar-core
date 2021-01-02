@@ -19,9 +19,13 @@ pub extern "C" fn isar_qb_create(
 pub unsafe extern "C" fn isar_qb_add_where_clause(
     builder: Option<&mut QueryBuilder>,
     where_clause: *mut WhereClause,
+    include_lower: bool,
+    include_upper: bool,
 ) {
     let wc = *Box::from_raw(where_clause);
-    builder.unwrap().add_where_clause(wc).unwrap();
+    builder
+        .unwrap()
+        .add_where_clause(wc, include_lower, include_upper);
 }
 
 #[no_mangle]

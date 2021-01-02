@@ -255,7 +255,7 @@ mod tests {
         wc.add_int(1, 1);
 
         let mut qb = isar.create_query_builder(col);
-        qb.add_where_clause(wc.clone()).unwrap();
+        qb.add_where_clause(wc.clone(), true, true);
         let q = qb.build();
 
         let results = q.find_all_vec(&txn).unwrap();
@@ -263,7 +263,7 @@ mod tests {
 
         wc.add_string_value(Some("b"), Some("x"));
         let mut qb = isar.create_query_builder(col);
-        qb.add_where_clause(wc).unwrap();
+        qb.add_where_clause(wc, true, true);
         let q = qb.build();
 
         let results = q.find_all_vec(&txn).unwrap();
@@ -285,7 +285,7 @@ mod tests {
         wc.add_string_value(Some("ab"), Some("xx"));
 
         let mut qb = isar.create_query_builder(col);
-        qb.add_where_clause(wc).unwrap();
+        qb.add_where_clause(wc, true, true);
         let q = qb.build();
 
         let results = q.find_all_vec(&txn).unwrap();
@@ -294,7 +294,7 @@ mod tests {
         let mut wc = col.create_secondary_where_clause(1).unwrap();
         wc.add_string_value(Some("ab"), Some("ab"));
         let mut qb = isar.create_query_builder(col);
-        qb.add_where_clause(wc).unwrap();
+        qb.add_where_clause(wc, true, true);
         let q = qb.build();
 
         let results = q.find_all_vec(&txn).unwrap();
@@ -324,9 +324,9 @@ mod tests {
         secondary_dup_wc.add_string_value(None, Some("aa"));
 
         let mut qb = isar.create_query_builder(col);
-        qb.add_where_clause(primary_wc).unwrap();
-        qb.add_where_clause(secondary_wc).unwrap();
-        qb.add_where_clause(secondary_dup_wc).unwrap();
+        qb.add_where_clause(primary_wc, true, true);
+        qb.add_where_clause(secondary_wc, true, true);
+        qb.add_where_clause(secondary_dup_wc, true, true);
         let q = qb.build();
 
         let results = q.find_all_vec(&txn).unwrap();

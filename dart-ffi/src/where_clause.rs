@@ -61,13 +61,9 @@ pub extern "C" fn isar_wc_add_int(where_clause: Option<&mut WhereClause>, lower:
 pub extern "C" fn isar_wc_add_float(
     where_clause: Option<&mut WhereClause>,
     lower: f32,
-    include_lower: bool,
     upper: f32,
-    include_upper: bool,
-) -> u8 {
-    isar_try! {
-        where_clause.unwrap().add_float(lower, include_lower,upper,include_upper)?;
-    }
+) {
+    where_clause.unwrap().add_float(lower, upper);
 }
 
 #[no_mangle]
@@ -79,13 +75,9 @@ pub extern "C" fn isar_wc_add_long(where_clause: Option<&mut WhereClause>, lower
 pub extern "C" fn isar_wc_add_double(
     where_clause: Option<&mut WhereClause>,
     lower: f64,
-    include_lower: bool,
     upper: f64,
-    include_upper: bool,
-) -> u8 {
-    isar_try! {
-        where_clause.unwrap().add_double(lower, include_lower,upper,include_upper)?;
-    }
+) {
+    where_clause.unwrap().add_double(lower, upper);
 }
 
 #[no_mangle]
@@ -102,11 +94,10 @@ pub unsafe extern "C" fn isar_wc_add_string_hash(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn isar_wc_add_lower_string_value(
+pub unsafe extern "C" fn isar_wc_add_string_value(
     where_clause: Option<&mut WhereClause>,
     lower: *const c_char,
     upper: *const c_char,
-    include: bool,
 ) {
     let lower_str = if !lower.is_null() {
         Some(from_c_str(lower).unwrap())
