@@ -1,6 +1,7 @@
 use super::raw_object_set::RawObjectSet;
 use isar_core::collection::IsarCollection;
 use isar_core::instance::IsarInstance;
+use isar_core::query::filter::Filter;
 use isar_core::query::query::Query;
 use isar_core::query::query_builder::QueryBuilder;
 use isar_core::query::where_clause::WhereClause;
@@ -26,6 +27,15 @@ pub unsafe extern "C" fn isar_qb_add_where_clause(
     builder
         .unwrap()
         .add_where_clause(wc, include_lower, include_upper);
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn isar_qb_set_filter(
+    builder: Option<&mut QueryBuilder>,
+    filter: *mut Filter,
+) {
+    let filter = *Box::from_raw(filter);
+    builder.unwrap().set_filter(filter);
 }
 
 #[no_mangle]
