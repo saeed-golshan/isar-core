@@ -46,7 +46,7 @@ pub unsafe extern "C" fn isar_filter_is_null(
 }
 
 #[macro_export]
-macro_rules! primitive_filter_ffi (
+macro_rules! primitive_filter_ffi {
     ($filter_name:ident, $function_name:ident, $type:ty) => {
         #[no_mangle]
         pub unsafe extern "C" fn $function_name(
@@ -70,7 +70,7 @@ macro_rules! primitive_filter_ffi (
             }
         }
     }
-);
+}
 
 primitive_filter_ffi!(ByteBetween, isar_filter_byte, u8);
 primitive_filter_ffi!(IntBetween, isar_filter_int, i32);
