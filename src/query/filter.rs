@@ -57,7 +57,7 @@ impl IsNull {
 }
 
 #[macro_export]
-macro_rules! primitive_filter (
+macro_rules! primitive_filter {
     ($between_name:ident, $data_type:ident, $type:ty, $prop_accessor:ident) => {
         pub struct $between_name {
             upper: $type,
@@ -85,8 +85,8 @@ macro_rules! primitive_filter (
                 }
             }
         }
-    }
-);
+    };
+}
 
 primitive_filter!(ByteBetween, Byte, u8, get_byte);
 primitive_filter!(IntBetween, Int, i32, get_int);

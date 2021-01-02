@@ -6,6 +6,7 @@ edition = "2018"
 
 [dependencies]
 isar-core = { path = "../" }
+float_next_after = "0.1.5"
 
 [lib]
 crate-type=["cdylib"]
