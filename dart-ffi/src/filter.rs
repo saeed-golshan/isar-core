@@ -1,9 +1,31 @@
 use isar_core::collection::IsarCollection;
 use isar_core::error::illegal_arg;
-use isar_core::query::filter::{Filter, IsNull};
+use isar_core::query::filter::{And, Filter, IsNull, Or};
+use std::slice;
 
 #[no_mangle]
-pub unsafe extern "C" fn isar_query_filter_is_null(
+pub unsafe extern "C" fn isar_filter_and_or(
+    filter: *mut *const Filter,
+    and: bool,
+    conditions: *mut *mut Filter,
+    length: u32,
+) -> u8 {
+    let filters = slice::from_raw_parts(conditions, length as usize)
+        .iter()
+        .map(|f| *Box::from_raw(*f))
+        .collect();
+    let and_or = if and {
+        And::filter(filters)
+    } else {
+        Or::filter(filters)
+    };
+    let ptr = Box::into_raw(Box::new(and_or));
+    filter.write(ptr);
+    0
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn isar_filter_is_null(
     collection: Option<&IsarCollection>,
     filter: *mut *const Filter,
     is_null: bool,
@@ -50,8 +72,8 @@ macro_rules! primitive_filter_ffi (
     }
 );
 
-primitive_filter_ffi!(ByteBetween, isar_query_filter_byte, u8);
-primitive_filter_ffi!(IntBetween, isar_query_filter_int, i32);
-primitive_filter_ffi!(FloatBetween, isar_query_filter_float, f32);
-primitive_filter_ffi!(LongBetween, isar_query_filter_long, i64);
-primitive_filter_ffi!(DoubleBetween, isar_query_filter_double, f64);
+primitive_filter_ffi!(ByteBetween, isar_filter_byte, u8);
+primitive_filter_ffi!(IntBetween, isar_filter_int, i32);
+primitive_filter_ffi!(FloatBetween, isar_filter_float, f32);
+primitive_filter_ffi!(LongBetween, isar_filter_long, i64);
+primitive_filter_ffi!(DoubleBetween, isar_filter_double, f64);
