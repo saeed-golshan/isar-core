@@ -11,7 +11,7 @@ pub mod crud;
 pub mod filter;
 pub mod instance;
 pub mod query;
-mod raw_object_set;
+pub mod raw_object_set;
 pub mod schema;
 pub mod txn;
 pub mod where_clause;

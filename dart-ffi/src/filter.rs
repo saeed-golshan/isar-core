@@ -47,7 +47,7 @@ pub unsafe extern "C" fn isar_filter_is_null(
 }
 
 #[macro_export]
-macro_rules! primitive_filter_ffi {
+macro_rules! filter_between_ffi {
     ($filter_name:ident, $function_name:ident, $next:ident, $prev:ident, $type:ty) => {
         #[no_mangle]
         pub unsafe extern "C" fn $function_name(
@@ -157,14 +157,64 @@ fn prev_double(value: f64) -> Option<f64> {
     }
 }
 
-primitive_filter_ffi!(ByteBetween, isar_filter_byte, next_byte, prev_byte, u8);
-primitive_filter_ffi!(IntBetween, isar_filter_int, next_int, prev_int, i32);
-primitive_filter_ffi!(FloatBetween, isar_filter_float, next_float, prev_float, f32);
-primitive_filter_ffi!(LongBetween, isar_filter_long, next_long, prev_long, i64);
-primitive_filter_ffi!(
+filter_between_ffi!(
+    ByteBetween,
+    isar_filter_byte_between,
+    next_byte,
+    prev_byte,
+    u8
+);
+filter_between_ffi!(IntBetween, isar_filter_int_between, next_int, prev_int, i32);
+filter_between_ffi!(
+    FloatBetween,
+    isar_filter_float_between,
+    next_float,
+    prev_float,
+    f32
+);
+filter_between_ffi!(
+    LongBetween,
+    isar_filter_long_between,
+    next_long,
+    prev_long,
+    i64
+);
+filter_between_ffi!(
     DoubleBetween,
-    isar_filter_double,
+    isar_filter_double_between,
     next_double,
     prev_double,
     f64
 );
+
+#[macro_export]
+macro_rules! filter_not_equal_to_ffi {
+    ($filter_name:ident, $function_name:ident, $type:ty) => {
+        #[no_mangle]
+        pub unsafe extern "C" fn $function_name(
+            collection: Option<&IsarCollection>,
+            filter: *mut *const Filter,
+            value: $type,
+            property_index: u32,
+        ) -> u8 {
+            let property = collection
+                .unwrap()
+                .get_property_by_index(property_index as usize);
+            isar_try! {
+                if let Some(property) = property {
+                    let query_filter = isar_core::query::filter::$filter_name::filter(property, value)?;
+                    let ptr = Box::into_raw(Box::new(query_filter));
+                    filter.write(ptr);
+                } else {
+                    illegal_arg("Property does not exist.")?;
+                }
+            }
+        }
+    }
+}
+
+filter_not_equal_to_ffi!(ByteNotEqual, isar_filter_byte_not_equal, u8);
+filter_not_equal_to_ffi!(IntNotEqual, isar_filter_int_not_equal, i32);
+filter_not_equal_to_ffi!(FloatNotEqual, isar_filter_float_not_equal, f32);
+filter_not_equal_to_ffi!(LongNotEqual, isar_filter_long_not_equal, i64);
+filter_not_equal_to_ffi!(DoubleNotEqual, isar_filter_double_not_equal, f64);

@@ -11,11 +11,16 @@ pub enum Case {
 #[enum_dispatch]
 pub enum Filter {
     IsNull(IsNull),
-    Byte(ByteBetween),
-    Int(IntBetween),
-    Long(LongBetween),
-    Float(FloatBetween),
-    Double(DoubleBetween),
+    ByteBetween(ByteBetween),
+    ByteNotEqual(ByteNotEqual),
+    IntBetween(IntBetween),
+    IntNotEqual(IntNotEqual),
+    LongBetween(LongBetween),
+    LongNotEqual(LongNotEqual),
+    FloatBetween(FloatBetween),
+    FloatNotEqual(FloatNotEqual),
+    DoubleBetween(DoubleBetween),
+    DoubleNotEqual(DoubleNotEqual),
     //StrAnyOf(StrAnyOf),
     /*StrStartsWith(),
     StrEndsWith(),
@@ -57,25 +62,18 @@ impl IsNull {
 }
 
 #[macro_export]
-macro_rules! primitive_filter {
-    ($between_name:ident, $data_type:ident, $type:ty, $prop_accessor:ident) => {
-        pub struct $between_name {
+macro_rules! filter_between {
+    ($name:ident, $data_type:ident, $type:ty) => {
+        pub struct $name {
             upper: $type,
             lower: $type,
             property: Property,
         }
 
-        impl Condition for $between_name {
-            fn evaluate(&self, object: &[u8]) -> bool {
-                let val = self.property.$prop_accessor(object);
-                self.lower <= val && self.upper >= val
-            }
-        }
-
-        impl $between_name {
+        impl $name {
             pub fn filter(property: Property, lower: $type, upper: $type) -> Result<Filter> {
                 if property.data_type == crate::object::data_type::DataType::$data_type {
-                    Ok(Filter::$data_type(Self {
+                    Ok(Filter::$name(Self {
                         property,
                         lower,
                         upper,
@@ -88,11 +86,105 @@ macro_rules! primitive_filter {
     };
 }
 
-primitive_filter!(ByteBetween, Byte, u8, get_byte);
-primitive_filter!(IntBetween, Int, i32, get_int);
-primitive_filter!(LongBetween, Long, i64, get_long);
-primitive_filter!(FloatBetween, Float, f32, get_float);
-primitive_filter!(DoubleBetween, Double, f64, get_double);
+#[macro_export]
+macro_rules! primitive_filter_between {
+    ($name:ident, $data_type:ident, $type:ty, $prop_accessor:ident) => {
+        filter_between!($name, $data_type, $type);
+
+        impl Condition for $name {
+            fn evaluate(&self, object: &[u8]) -> bool {
+                let val = self.property.$prop_accessor(object);
+                self.lower <= val && self.upper >= val
+            }
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! float_filter_between {
+    ($name:ident, $data_type:ident, $type:ty, $prop_accessor:ident) => {
+        filter_between!($name, $data_type, $type);
+
+        impl Condition for $name {
+            fn evaluate(&self, object: &[u8]) -> bool {
+                let val = self.property.$prop_accessor(object);
+                if self.upper.is_nan() {
+                    self.lower.is_nan() && val.is_nan()
+                } else if self.lower.is_nan() {
+                    self.upper >= val
+                } else {
+                    self.lower <= val && self.upper >= val
+                }
+            }
+        }
+    };
+}
+
+primitive_filter_between!(ByteBetween, Byte, u8, get_byte);
+primitive_filter_between!(IntBetween, Int, i32, get_int);
+primitive_filter_between!(LongBetween, Long, i64, get_long);
+float_filter_between!(FloatBetween, Float, f32, get_float);
+float_filter_between!(DoubleBetween, Double, f64, get_double);
+
+#[macro_export]
+macro_rules! filter_not_equal {
+    ($name:ident, $data_type:ident, $type:ty) => {
+        pub struct $name {
+            value: $type,
+            property: Property,
+        }
+
+        impl $name {
+            pub fn filter(property: Property, value: $type) -> Result<Filter> {
+                if property.data_type == crate::object::data_type::DataType::$data_type {
+                    Ok(Filter::$name(Self { property, value }))
+                } else {
+                    illegal_arg("Property does not support this filter.")
+                }
+            }
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! primitive_filter_not_equal {
+    ($not_equal_name:ident, $data_type:ident, $type:ty, $prop_accessor:ident) => {
+        filter_not_equal!($not_equal_name, $data_type, $type);
+
+        impl Condition for $not_equal_name {
+            fn evaluate(&self, object: &[u8]) -> bool {
+                let val = self.property.$prop_accessor(object);
+                self.value != val
+            }
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! float_filter_not_equal {
+    ($name:ident, $data_type:ident, $type:ty, $prop_accessor:ident) => {
+        filter_not_equal!($name, $data_type, $type);
+
+        impl Condition for $name {
+            fn evaluate(&self, object: &[u8]) -> bool {
+                let val = self.property.$prop_accessor(object);
+                if self.value.is_nan() {
+                    !val.is_nan()
+                } else if val.is_nan() {
+                    !self.value.is_nan()
+                } else {
+                    (self.value - val).abs() < <$type>::EPSILON
+                }
+            }
+        }
+    };
+}
+
+primitive_filter_not_equal!(ByteNotEqual, Byte, u8, get_byte);
+primitive_filter_not_equal!(IntNotEqual, Int, i32, get_int);
+primitive_filter_not_equal!(LongNotEqual, Long, i64, get_long);
+float_filter_not_equal!(FloatNotEqual, Float, f32, get_float);
+float_filter_not_equal!(DoubleNotEqual, Double, f64, get_double);
 
 /*pub struct StrAnyOf {
     property: Property,
