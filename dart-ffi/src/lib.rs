@@ -7,6 +7,7 @@ use std::os::raw::c_char;
 #[macro_use]
 mod isar_try;
 
+pub mod async_txn;
 pub mod crud;
 pub mod filter;
 pub mod instance;

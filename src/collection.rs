@@ -21,6 +21,8 @@ pub struct IsarCollection {
     oidg: ObjectIdGenerator,
 }
 
+unsafe impl Sync for IsarCollection {}
+
 impl IsarCollection {
     pub(crate) fn new(id: u16, object_info: ObjectInfo, indexes: Vec<Index>, db: Db) -> Self {
         IsarCollection {

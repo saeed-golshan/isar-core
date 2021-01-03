@@ -16,6 +16,8 @@ pub struct IsarInstance {
     //path: String,
 }
 
+unsafe impl Sync for IsarInstance {}
+
 impl IsarInstance {
     pub fn create(path: &str, max_size: u32, schema: Schema) -> Result<Self> {
         let env = Env::create(path, 5, max_size)?;

@@ -13,16 +13,24 @@ pub struct RawObject {
     data_length: u32,
 }
 
+#[repr(C)]
+pub struct RawObjectSend(pub &'static mut RawObject);
+
+unsafe impl Send for RawObjectSend {}
+
 impl RawObject {
     pub fn new(oid: ObjectId, object: &[u8]) -> Self {
-        let mut obj = RawObject {
+        RawObject {
             oid_time: oid.get_time(),
             oid_rand_counter: oid.get_rand_counter(),
-            data: ptr::null(),
-            data_length: 0,
-        };
-        obj.set_object(object);
-        obj
+            data: object as *const _ as *const u8,
+            data_length: object.len() as u32,
+        }
+    }
+
+    pub fn set_object_id(&mut self, oid: ObjectId) {
+        self.oid_time = oid.get_time();
+        self.oid_rand_counter = oid.get_rand_counter();
     }
 
     pub fn set_object(&mut self, object: &[u8]) {
@@ -30,11 +38,6 @@ impl RawObject {
         let data = object as *const _ as *const u8;
         self.data = data;
         self.data_length = data_length;
-    }
-
-    pub fn set_object_id(&mut self, oid: ObjectId) {
-        self.oid_time = oid.get_time();
-        self.oid_rand_counter = oid.get_rand_counter();
     }
 
     pub fn set_empty(&mut self) {

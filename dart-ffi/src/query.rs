@@ -1,4 +1,5 @@
 use super::raw_object_set::RawObjectSet;
+use crate::raw_object_set::RawObject;
 use isar_core::collection::IsarCollection;
 use isar_core::instance::IsarInstance;
 use isar_core::query::filter::Filter;

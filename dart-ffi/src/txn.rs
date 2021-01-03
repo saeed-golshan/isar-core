@@ -1,3 +1,4 @@
+use crate::async_txn::IsarAsyncTxn;
 use isar_core::instance::IsarInstance;
 use isar_core::txn::IsarTxn;
 
@@ -15,6 +16,18 @@ pub unsafe extern "C" fn isar_txn_begin(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn isar_txn_begin_async(
+    isar: &'static IsarInstance,
+    txn: *mut *const IsarAsyncTxn,
+    write: bool,
+    handle: i64,
+) {
+    let new_txn = IsarAsyncTxn::new(isar, write, handle);
+    let txn_ptr = Box::into_raw(Box::new(new_txn));
+    txn.write(txn_ptr);
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn isar_txn_commit(txn: *mut IsarTxn) -> u8 {
     isar_try! {
         let txn = Box::from_raw(txn);
@@ -23,9 +36,21 @@ pub unsafe extern "C" fn isar_txn_commit(txn: *mut IsarTxn) -> u8 {
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn isar_txn_commit_async(txn: *mut IsarAsyncTxn) {
+    let txn = Box::from_raw(txn);
+    txn.commit();
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn isar_txn_abort(txn: *mut IsarTxn) -> u8 {
     isar_try! {
         let txn = Box::from_raw(txn);
         txn.abort()?;
     }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn isar_txn_abort_async(txn: *mut IsarAsyncTxn) {
+    let txn = Box::from_raw(txn);
+    txn.abort();
 }
