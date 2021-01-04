@@ -1,5 +1,6 @@
 use super::raw_object_set::RawObjectSet;
-use crate::raw_object_set::RawObject;
+use crate::async_txn::IsarAsyncTxn;
+use crate::raw_object_set::RawObjectSetSend;
 use isar_core::collection::IsarCollection;
 use isar_core::instance::IsarInstance;
 use isar_core::query::filter::Filter;
@@ -54,4 +55,14 @@ pub unsafe extern "C" fn isar_q_find_all(
     isar_try! {
         result.fill_from_query(query, txn)?;
     }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn isar_q_find_all_async(
+    query: &'static Query,
+    txn: &IsarAsyncTxn,
+    result: &'static mut RawObjectSet,
+) {
+    let result = RawObjectSetSend(result);
+    txn.exec(move |txn| result.0.fill_from_query(query, txn));
 }

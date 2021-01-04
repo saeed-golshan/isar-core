@@ -1,4 +1,4 @@
-use crate::async_txn::{AsyncResponse, IsarAsyncTxn};
+use crate::async_txn::IsarAsyncTxn;
 use crate::raw_object_set::{RawObject, RawObjectSend};
 use isar_core::collection::IsarCollection;
 use isar_core::error::Result;
@@ -29,14 +29,14 @@ pub unsafe extern "C" fn isar_get_async(
 ) {
     let object = RawObjectSend(object);
     let oid = object.0.get_object_id(collection).unwrap();
-    txn.exec(move |txn| -> Result<AsyncResponse> {
+    txn.exec(move |txn| -> Result<()> {
         let result = collection.get(txn, oid)?;
         if let Some(result) = result {
             object.0.set_object(result);
         } else {
             object.0.set_empty();
         }
-        Ok(AsyncResponse::success())
+        Ok(())
     });
 }
 
@@ -62,11 +62,11 @@ pub unsafe extern "C" fn isar_put_async(
 ) {
     let object = RawObjectSend(object);
     let oid = object.0.get_object_id(collection);
-    txn.exec(move |txn| -> Result<AsyncResponse> {
+    txn.exec(move |txn| -> Result<()> {
         let data = object.0.object_as_slice();
         let oid = collection.put(txn, oid, data)?;
         object.0.set_object_id(oid);
-        Ok(AsyncResponse::success())
+        Ok(())
     });
 }
 
@@ -77,13 +77,35 @@ pub unsafe extern "C" fn isar_delete(
     object: &RawObject,
 ) -> u8 {
     isar_try! {
-        collection.delete(txn, object.get_object_id(collection).unwrap())?;
+    let oid = object.get_object_id(collection).unwrap();
+        collection.delete(txn, oid)?;
     }
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn isar_clear(collection: &IsarCollection, txn: &mut IsarTxn) -> u8 {
+pub unsafe extern "C" fn isar_delete_async(
+    collection: &'static IsarCollection,
+    txn: &IsarAsyncTxn,
+    object: &RawObject,
+) {
+    let oid = object.get_object_id(collection).unwrap();
+    txn.exec(move |txn| collection.delete(txn, oid));
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn isar_clear_collection(
+    collection: &IsarCollection,
+    txn: &mut IsarTxn,
+) -> u8 {
     isar_try! {
         collection.clear(txn)?;
     }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn isar_clear_collection_async(
+    collection: &'static IsarCollection,
+    txn: &IsarAsyncTxn,
+) {
+    txn.exec(move |txn| collection.clear(txn));
 }

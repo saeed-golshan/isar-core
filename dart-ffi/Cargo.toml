@@ -8,6 +8,7 @@ edition = "2018"
 isar-core = { path = "../" }
 float_next_after = "0.1.5"
 threadpool = "1.8.1"
+once_cell = "1.5.2"
 
 [lib]
 crate-type=["cdylib"]

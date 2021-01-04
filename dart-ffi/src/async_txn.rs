@@ -1,37 +1,40 @@
-use crate::raw_object_set::RawObjectSet;
-use isar_core::error::{illegal_state, IsarError, Result};
+use crate::dart::{DartCObject, DartPort, DART_POST_C_OBJECT};
+use isar_core::error::{illegal_state, Result};
 use isar_core::instance::IsarInstance;
 use isar_core::txn::IsarTxn;
+use once_cell::sync::Lazy;
 use std::cell::RefCell;
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
+use std::sync::Mutex;
 use threadpool::{Builder, ThreadPool};
 
 thread_local! {
-    static THREAD_POOL: ThreadPool = Builder::new().build();
     static TXN: RefCell<Option<IsarTxn>> = RefCell::new(None);
 }
+
+static THREAD_POOL: Lazy<Mutex<ThreadPool>> = Lazy::new(|| Mutex::new(Builder::new().build()));
 
 type AsyncJob = (Box<dyn FnOnce() + Send + 'static>, bool);
 
 pub struct IsarAsyncTxn {
     tx: Sender<AsyncJob>,
-    handle: i64,
+    port: DartPort,
 }
 
 impl IsarAsyncTxn {
-    pub fn new(isar: &'static IsarInstance, write: bool, handle: i64) -> Self {
+    pub fn new(isar: &'static IsarInstance, write: bool, port: DartPort) -> Self {
+        eprintln!("starting txn");
         let (tx, rx): (Sender<AsyncJob>, Receiver<AsyncJob>) = mpsc::channel();
-        THREAD_POOL.with(|tp| {
-            tp.execute(move || {
-                Self::start_executor(isar, write, rx);
-            });
+        THREAD_POOL.lock().unwrap().execute(move || {
+            Self::start_executor(isar, write, rx);
         });
 
-        IsarAsyncTxn { tx, handle }
+        IsarAsyncTxn { tx, port }
     }
 
     fn start_executor(isar: &IsarInstance, write: bool, rx: Receiver<AsyncJob>) {
+        eprintln!("starting executor");
         let new_txn = isar.begin_txn(write);
         if let Ok(new_txn) = new_txn {
             TXN.with(|txn| {
@@ -39,31 +42,33 @@ impl IsarAsyncTxn {
             });
 
             loop {
+                eprintln!("loop");
                 let (job, stop) = rx.recv().unwrap();
                 job();
                 if stop {
                     break;
                 }
             }
+
+            eprintln!("end loop");
         }
     }
 
-    fn exec_internal<F: FnOnce() -> Result<AsyncResponse> + Send + 'static>(
-        &self,
-        job: F,
-        stop: bool,
-    ) {
-        let handle_response_job = || {
-            let response = match job() {
-                Ok(result) => result,
-                Err(e) => AsyncResponse::error(e),
+    fn exec_internal<F: FnOnce() -> Result<()> + Send + 'static>(&self, job: F, stop: bool) {
+        let port = self.port;
+        let handle_response_job = move || {
+            let result = match job() {
+                Ok(()) => 0,
+                Err(e) => 1,
             };
+            let dart_post = DART_POST_C_OBJECT.get().unwrap();
+            dart_post(port, &mut DartCObject::from_int_i32(result));
         };
         self.tx.send((Box::new(handle_response_job), stop)).unwrap();
     }
 
-    pub fn exec<F: FnOnce(&mut IsarTxn) -> Result<AsyncResponse> + Send + 'static>(&self, job: F) {
-        let job = || -> Result<AsyncResponse> {
+    pub fn exec<F: FnOnce(&mut IsarTxn) -> Result<()> + Send + 'static>(&self, job: F) {
+        let job = || -> Result<()> {
             TXN.with(|txn| {
                 if let Some(ref mut txn) = *txn.borrow_mut() {
                     job(txn)
@@ -76,57 +81,24 @@ impl IsarAsyncTxn {
     }
 
     pub fn commit(self) {
-        let job = || -> Result<AsyncResponse> {
+        let job = || -> Result<()> {
             TXN.with(|txn| {
                 let txn = txn.borrow_mut().take().unwrap();
                 txn.commit()
             })?;
-            Ok(AsyncResponse::success())
+            Ok(())
         };
         self.exec_internal(job, true);
     }
 
     pub fn abort(self) {
-        let job = || -> Result<AsyncResponse> {
+        let job = || -> Result<()> {
             TXN.with(|txn| {
                 let txn = txn.borrow_mut().take().unwrap();
                 txn.abort()
             })?;
-            Ok(AsyncResponse::success())
+            Ok(())
         };
         self.exec_internal(job, true);
-    }
-}
-
-#[repr(C)]
-pub struct AsyncResponse {
-    pub data: Option<RawObjectSet>,
-    pub count: u32,
-    pub error: u32,
-}
-
-impl AsyncResponse {
-    pub fn success() -> Self {
-        AsyncResponse {
-            count: 0,
-            data: None,
-            error: 0,
-        }
-    }
-
-    pub fn error(err: IsarError) -> Self {
-        AsyncResponse {
-            count: 0,
-            data: None,
-            error: 1,
-        }
-    }
-
-    pub fn data(objects: RawObjectSet) -> Self {
-        AsyncResponse {
-            count: objects.length(),
-            data: Some(objects),
-            error: 1,
-        }
     }
 }

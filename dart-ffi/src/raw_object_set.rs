@@ -77,6 +77,11 @@ pub struct RawObjectSet {
     length: u32,
 }
 
+#[repr(C)]
+pub struct RawObjectSetSend(pub &'static mut RawObjectSet);
+
+unsafe impl Send for RawObjectSetSend {}
+
 impl RawObjectSet {
     pub fn fill_from_query(&mut self, query: &Query, txn: &IsarTxn) -> Result<()> {
         let mut objects = vec![];
