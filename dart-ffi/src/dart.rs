@@ -37,6 +37,6 @@ union DartCObjectValue {
 }
 
 #[no_mangle]
-unsafe extern "C" fn isar_connect_dart_api(ptr: DartPostCObjectFnType) {
+pub unsafe extern "C" fn isar_connect_dart_api(ptr: DartPostCObjectFnType) {
     let _ = DART_POST_C_OBJECT.set(ptr);
 }
