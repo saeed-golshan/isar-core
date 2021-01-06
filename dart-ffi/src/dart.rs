@@ -9,16 +9,17 @@ pub fn dart_post_int(port: DartPort, value: i32) {
 
 pub type DartPort = i64;
 
-type DartPostCObjectFnType = extern "C" fn(port_id: DartPort, message: *mut DartCObject) -> bool;
+pub type DartPostCObjectFnType =
+    extern "C" fn(port_id: DartPort, message: *mut DartCObject) -> bool;
 
 #[repr(C)]
-struct DartCObject {
-    pub ty: i32,
-    pub value: DartCObjectValue,
+pub struct DartCObject {
+    ty: i32,
+    value: DartCObjectValue,
 }
 
 impl DartCObject {
-    pub fn from_int_i32(value: i32) -> Self {
+    fn from_int_i32(value: i32) -> Self {
         DartCObject {
             ty: 2,
             value: DartCObjectValue { as_int32: value },

@@ -13,7 +13,7 @@ pub struct WhereClause {
 }
 
 impl WhereClause {
-    pub fn new(prefix: &[u8], index_type: IndexType) -> Self {
+    pub(crate) fn new(prefix: &[u8], index_type: IndexType) -> Self {
         WhereClause {
             lower_key: prefix.to_vec(),
             upper_key: prefix.to_vec(),
@@ -22,7 +22,7 @@ impl WhereClause {
         }
     }
 
-    pub fn empty() -> Self {
+    pub(crate) fn empty() -> Self {
         WhereClause {
             lower_key: vec![0],
             upper_key: vec![10],
@@ -31,7 +31,7 @@ impl WhereClause {
         }
     }
 
-    pub fn iter<'a, 'txn>(
+    pub(crate) fn iter<'a, 'txn>(
         &'a self,
         cursor: &'a mut Cursor<'txn>,
     ) -> Result<Option<WhereClauseIterator<'a, 'txn>>> {

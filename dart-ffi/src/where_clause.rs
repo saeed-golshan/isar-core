@@ -28,7 +28,7 @@ pub unsafe extern "C" fn isar_wc_create(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn isar_wc_oid(
+pub unsafe extern "C" fn isar_wc_add_oid(
     where_clause: Option<&mut WhereClause>,
     time: u32,
     rand_counter: u64,

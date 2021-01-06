@@ -21,8 +21,8 @@ pub enum Filter {
     FloatNotEqual(FloatNotEqual),
     DoubleBetween(DoubleBetween),
     DoubleNotEqual(DoubleNotEqual),
-    //StrAnyOf(StrAnyOf),
-    /*StrStartsWith(),
+    /*StrAnyOf(StrAnyOf),
+    StrStartsWith(),
     StrEndsWith(),
     StrContains(),*/
     And(And),
@@ -34,15 +34,6 @@ pub enum Filter {
 pub trait Condition {
     fn evaluate(&self, object: &[u8]) -> bool;
 }
-
-/*impl Filter {
-    fn null_safe(self) -> Filter {
-        Filter::NonNullFilter(NonNullFilter {
-            property: self.get_property().unwrap(),
-            filter: Box::new(self),
-        })
-    }
-}*/
 
 pub struct IsNull {
     property: Property,
@@ -298,41 +289,3 @@ impl Not {
         })
     }
 }
-
-/*pub struct Not {
-    filter: Box<Filter>,
-}
-
-impl Condition for Not {
-    fn evaluate(&self, object: &[u8]) -> bool {
-        !self.filter.evaluate(object)
-    }
-}
-
-impl Not {
-    pub fn filter(filter: Filter) -> Filter {
-        Filter::Not(Not {
-            filter: Box::new(filter),
-        })
-    }
-}
-
-pub struct LinkFilter {
-    property: Property,
-    filter: Box<Filter>,
-}
-
-impl Condition for LinkFilter {
-    fn evaluate(&self, object: &[u8]) -> bool {
-        !self.filter.evaluate(object)
-    }
-}
-
-impl LinkFilter {
-    pub fn filter(filter: Filter) -> Filter {
-        Filter::Not(Not {
-            filter: Box::new(filter),
-        })
-    }
-}
-*/

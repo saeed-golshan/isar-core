@@ -66,9 +66,7 @@ impl ObjectInfo {
                     return false;
                 }
 
-                if property.data_type != DataType::StringList
-                    && property.data_type != DataType::ByteList
-                {
+                if property.data_type != DataType::StringList {
                     dynamic_offset += pos.length as usize * property.data_type.get_element_size();
                 } else {
                     let list_positions = property.get_dynamic_positions(object).unwrap();
