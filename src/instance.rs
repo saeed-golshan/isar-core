@@ -13,14 +13,14 @@ pub struct IsarInstance {
     env: Env,
     dbs: DataDbs,
     collections: Vec<IsarCollection>,
-    //path: String,
 }
 
 unsafe impl Sync for IsarInstance {}
+unsafe impl Send for IsarInstance {}
 
 impl IsarInstance {
-    pub fn create(path: &str, max_size: u32, schema: Schema) -> Result<Self> {
-        let env = Env::create(path, 5, max_size)?;
+    pub fn create(path: &str, max_size: usize, schema: Schema) -> Result<Self> {
+        let env = Env::create(path, 4, max_size)?;
         let dbs = IsarInstance::open_databases(&env)?;
 
         let collections = schema.build_collections(dbs, None);
@@ -33,7 +33,6 @@ impl IsarInstance {
             env,
             dbs,
             collections,
-            //path: path.to_string(),
         })
     }
 
@@ -43,14 +42,12 @@ impl IsarInstance {
         let primary = Db::open(&txn, "data", false, false)?;
         let secondary = Db::open(&txn, "index", false, true)?;
         let secondary_dup = Db::open(&txn, "index_dup", true, true)?;
-        let links = Db::open(&txn, "links", true, true)?;
         txn.commit()?;
         Ok(DataDbs {
             info,
             primary,
             secondary,
             secondary_dup,
-            links,
         })
     }
 

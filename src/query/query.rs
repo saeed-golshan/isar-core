@@ -62,7 +62,7 @@ impl Query {
     where
         F: FnMut(&'txn ObjectId, &'txn [u8]) -> bool,
     {
-        let lmdb_txn = txn.get_read_txn()?;
+        let lmdb_txn = txn.get_txn()?;
         let primary_cursor = self.primary_db.cursor(lmdb_txn)?;
         let secondary_cursor = map_option!(self.secondary_db, db, db.cursor(lmdb_txn)?);
         let secondary_dup_cursor = map_option!(self.secondary_dup_db, db, db.cursor(lmdb_txn)?);

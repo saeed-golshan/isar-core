@@ -4,9 +4,9 @@ use isar_core::instance::IsarInstance;
 use isar_core::txn::IsarTxn;
 
 #[no_mangle]
-pub unsafe extern "C" fn isar_txn_begin(
-    isar: Option<&IsarInstance>,
-    txn: *mut *const IsarTxn,
+pub unsafe extern "C" fn isar_txn_begin<'env>(
+    isar: Option<&'env IsarInstance>,
+    txn: *mut *const IsarTxn<'env>,
     write: bool,
 ) -> u8 {
     isar_try! {

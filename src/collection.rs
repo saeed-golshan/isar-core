@@ -22,6 +22,7 @@ pub struct IsarCollection {
 }
 
 unsafe impl Sync for IsarCollection {}
+unsafe impl Send for IsarCollection {}
 
 impl IsarCollection {
     pub(crate) fn new(id: u16, object_info: ObjectInfo, indexes: Vec<Index>, db: Db) -> Self {
@@ -53,7 +54,7 @@ impl IsarCollection {
     pub fn get<'txn>(&self, txn: &'txn IsarTxn, oid: ObjectId) -> Result<Option<&'txn [u8]>> {
         self.verify_object_id(oid)?;
         let oid_bytes = oid.as_bytes();
-        self.db.get(txn.get_read_txn()?, &oid_bytes)
+        self.db.get(txn.get_txn()?, &oid_bytes)
     }
 
     fn generate_or_veriy_oid(&self, lmdb_txn: &Txn, oid: Option<ObjectId>) -> Result<ObjectId> {
@@ -67,44 +68,43 @@ impl IsarCollection {
     }
 
     pub fn put(&self, txn: &mut IsarTxn, oid: Option<ObjectId>, object: &[u8]) -> Result<ObjectId> {
-        let lmdb_txn = txn.take_write_txn()?;
-        let oid = self.generate_or_veriy_oid(&lmdb_txn, oid)?;
+        txn.exec_atomic_write(|lmdb_txn| {
+            let oid = self.generate_or_veriy_oid(lmdb_txn, oid)?;
 
-        if !self.object_info.verify_object(object) {
-            illegal_arg("Provided object is invalid.")?;
-        }
+            if !self.object_info.verify_object(object) {
+                illegal_arg("Provided object is invalid.")?;
+            }
 
-        let oid_bytes = oid.as_bytes();
-        for index in &self.indexes {
-            index.create_for_object(&lmdb_txn, &oid_bytes, object)?;
-        }
+            let oid_bytes = oid.as_bytes();
+            for index in &self.indexes {
+                index.create_for_object(lmdb_txn, &oid_bytes, object)?;
+            }
 
-        self.db.put(&lmdb_txn, &oid_bytes, object)?;
-        txn.put_write_txn(lmdb_txn);
-        Ok(oid)
+            self.db.put(lmdb_txn, &oid_bytes, object)?;
+            Ok(oid)
+        })
     }
 
     pub fn delete(&self, txn: &mut IsarTxn, oid: ObjectId) -> Result<()> {
         self.verify_object_id(oid)?;
-        let lmdb_txn = txn.take_write_txn()?;
-        if self.delete_from_indexes(&lmdb_txn, oid)? {
-            let oid_bytes = oid.as_bytes();
-            self.db.delete(&lmdb_txn, &oid_bytes, None)?;
-        }
-        txn.put_write_txn(lmdb_txn);
-        Ok(())
+        txn.exec_atomic_write(|lmdb_txn| {
+            if self.delete_from_indexes(&lmdb_txn, oid)? {
+                let oid_bytes = oid.as_bytes();
+                self.db.delete(&lmdb_txn, &oid_bytes, None)?;
+            }
+            Ok(())
+        })
     }
 
-    pub fn clear(&self, txn: &mut IsarTxn) -> Result<()> {
-        let lmdb_txn = txn.take_write_txn()?;
-        for index in &self.indexes {
-            index.clear(&lmdb_txn)?;
-        }
-        self.db
-            .delete_key_prefix(&lmdb_txn, &self.id.to_le_bytes())?;
-        txn.put_write_txn(lmdb_txn);
-
-        Ok(())
+    pub fn delete_all(&self, txn: &mut IsarTxn) -> Result<()> {
+        txn.exec_atomic_write(|lmdb_txn| {
+            for index in &self.indexes {
+                index.clear(&lmdb_txn)?;
+            }
+            self.db
+                .delete_key_prefix(&lmdb_txn, &self.id.to_le_bytes())?;
+            Ok(())
+        })
     }
 
     pub fn create_primary_where_clause(&self) -> WhereClause {
@@ -313,7 +313,7 @@ mod tests {
     }
 
     #[test]
-    fn test_clear() {
+    fn test_delete_all() {
         isar!(isar, col1 => col!(f1 => Int; ind!(f1)), col2 => col!(f2 => Int; ind!(f2)));
 
         let mut txn = isar.begin_txn(true).unwrap();
@@ -331,7 +331,7 @@ mod tests {
         let oid1 = col2.put(&mut txn, None, object1.as_bytes()).unwrap();
         let oid2 = col2.put(&mut txn, None, object2.as_bytes()).unwrap();
 
-        col1.clear(&mut txn).unwrap();
+        col1.delete_all(&mut txn).unwrap();
 
         assert!(col1.debug_dump(&txn).is_empty());
         assert!(&col1.indexes[0].debug_dump(&txn).is_empty());

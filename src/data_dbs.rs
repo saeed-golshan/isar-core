@@ -6,7 +6,6 @@ pub struct DataDbs {
     pub primary: Db,
     pub secondary: Db,
     pub secondary_dup: Db,
-    pub links: Db,
 }
 
 impl DataDbs {
@@ -16,7 +15,6 @@ impl DataDbs {
             primary,
             secondary,
             secondary_dup,
-            links,
         }
     }
 

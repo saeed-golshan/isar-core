@@ -8,7 +8,7 @@ pub mod data_dbs;
 pub mod error;
 pub mod index;
 pub mod instance;
-mod lmdb;
+pub mod lmdb;
 pub mod object;
 pub mod query;
 pub mod schema;

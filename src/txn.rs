@@ -1,44 +1,43 @@
 use crate::error::{illegal_state, Result};
 use crate::lmdb::txn::Txn;
 
-pub struct IsarTxn {
-    txn: Option<Txn>,
+pub struct IsarTxn<'env> {
+    txn: Option<Txn<'env>>,
     write: bool,
 }
 
-impl IsarTxn {
-    pub(crate) fn new(txn: Txn, write: bool) -> Self {
+impl<'env> IsarTxn<'env> {
+    pub(crate) fn new(txn: Txn<'env>, write: bool) -> Self {
         IsarTxn {
             txn: Some(txn),
             write,
         }
     }
 
-    pub fn is_usable(&self) -> bool {
-        self.txn.is_some()
+    pub fn exec_atomic_write<T, F>(&mut self, job: F) -> Result<T>
+    where
+        F: FnOnce(&Txn) -> Result<T>,
+    {
+        let nested_txn = self.get_write_txn()?.nested_txn(true)?;
+        let result = job(&nested_txn)?;
+        nested_txn.commit()?;
+        Ok(result)
     }
 
-    pub(crate) fn get_read_txn(&self) -> Result<&Txn> {
+    pub(crate) fn get_txn(&self) -> Result<&Txn> {
         if let Some(txn) = &self.txn {
             Ok(txn)
         } else {
-            illegal_state("Transaction currently in use or closed.")
+            illegal_state("Transaction is already closed.")
         }
     }
 
-    pub(crate) fn take_write_txn(&mut self) -> Result<Txn> {
-        if !self.write {
-            illegal_state("Write transaction required")
-        } else if let Some(txn) = self.txn.take() {
-            Ok(txn)
+    pub(crate) fn get_write_txn(&self) -> Result<&Txn> {
+        if self.write {
+            self.get_txn()
         } else {
-            illegal_state("Transaction currently in use or closed.")
+            illegal_state("Write transaction required.")
         }
-    }
-
-    pub(crate) fn put_write_txn(&mut self, txn: Txn) {
-        assert!(self.write);
-        self.txn = Some(txn)
     }
 
     pub fn commit(mut self) -> Result<()> {

@@ -93,19 +93,16 @@ pub unsafe extern "C" fn isar_delete_async(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn isar_clear_collection(
-    collection: &IsarCollection,
-    txn: &mut IsarTxn,
-) -> u8 {
+pub unsafe extern "C" fn isar_delete_all(collection: &IsarCollection, txn: &mut IsarTxn) -> u8 {
     isar_try! {
-        collection.clear(txn)?;
+        collection.delete_all(txn)?;
     }
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn isar_clear_collection_async(
+pub unsafe extern "C" fn isar_delete_all_async(
     collection: &'static IsarCollection,
     txn: &IsarAsyncTxn,
 ) {
-    txn.exec(move |txn| collection.clear(txn));
+    txn.exec(move |txn| collection.delete_all(txn));
 }

@@ -2,6 +2,7 @@ use super::raw_object_set::RawObjectSet;
 use crate::async_txn::IsarAsyncTxn;
 use crate::raw_object_set::RawObjectSetSend;
 use isar_core::collection::IsarCollection;
+use isar_core::error::Result;
 use isar_core::instance::IsarInstance;
 use isar_core::query::filter::Filter;
 use isar_core::query::query::Query;
@@ -65,4 +66,28 @@ pub unsafe extern "C" fn isar_q_find_all_async(
 ) {
     let result = RawObjectSetSend(result);
     txn.exec(move |txn| result.0.fill_from_query(query, txn));
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn isar_q_count(query: &Query, txn: &IsarTxn, count: &mut i64) -> u8 {
+    isar_try! {
+        *count = query.count(txn)? as i64;
+    }
+}
+
+struct IntSend(&'static mut i64);
+
+unsafe impl Send for IntSend {}
+
+#[no_mangle]
+pub unsafe extern "C" fn isar_q_count_async(
+    query: &'static Query,
+    txn: &IsarAsyncTxn,
+    count: &'static mut i64,
+) {
+    let count = IntSend(count);
+    txn.exec(move |txn| -> Result<()> {
+        *(count.0) = query.count(txn)? as i64;
+        Ok(())
+    });
 }
