@@ -14,7 +14,7 @@ impl<'env> IsarTxn<'env> {
         }
     }
 
-    pub fn exec_atomic_write<T, F>(&mut self, job: F) -> Result<T>
+    pub(crate) fn exec_atomic_write<T, F>(&mut self, job: F) -> Result<T>
     where
         F: FnOnce(&Txn) -> Result<T>,
     {

@@ -8,8 +8,8 @@ use crate::object::object_id_generator::ObjectIdGenerator;
 use crate::object::object_info::ObjectInfo;
 use crate::object::property::Property;
 use crate::query::where_clause::WhereClause;
-
 use crate::txn::IsarTxn;
+
 #[cfg(test)]
 use {crate::utils::debug::dump_db, hashbrown::HashSet};
 
@@ -57,19 +57,15 @@ impl IsarCollection {
         self.db.get(txn.get_txn()?, &oid_bytes)
     }
 
-    fn generate_or_veriy_oid(&self, lmdb_txn: &Txn, oid: Option<ObjectId>) -> Result<ObjectId> {
-        if let Some(oid) = oid {
-            self.verify_object_id(oid)?;
-            self.delete_from_indexes(lmdb_txn, oid)?;
-            Ok(oid)
-        } else {
-            Ok(self.oidg.generate())
-        }
-    }
-
     pub fn put(&self, txn: &mut IsarTxn, oid: Option<ObjectId>, object: &[u8]) -> Result<ObjectId> {
         txn.exec_atomic_write(|lmdb_txn| {
-            let oid = self.generate_or_veriy_oid(lmdb_txn, oid)?;
+            let oid = if let Some(oid) = oid {
+                self.verify_object_id(oid)?;
+                self.delete_from_indexes(lmdb_txn, oid)?;
+                oid
+            } else {
+                self.oidg.generate()
+            };
 
             if !self.object_info.verify_object(object) {
                 illegal_arg("Provided object is invalid.")?;

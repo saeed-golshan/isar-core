@@ -136,7 +136,6 @@ impl Index {
         u64::to_be_bytes(unsigned ^ 1 << 63).to_vec()
     }
 
-    #[allow(clippy::transmute_float_to_int)]
     pub fn get_float_key(value: f32) -> Vec<u8> {
         if !value.is_nan() {
             let bits = if value.is_sign_positive() {
@@ -150,7 +149,6 @@ impl Index {
         }
     }
 
-    #[allow(clippy::transmute_float_to_int)]
     pub fn get_double_key(value: f64) -> Vec<u8> {
         if !value.is_nan() {
             let bits = if value.is_sign_positive() {

@@ -9,23 +9,13 @@ pub struct DataDbs {
 }
 
 impl DataDbs {
-    pub fn new(info: Db, primary: Db, secondary: Db, secondary_dup: Db, links: Db) -> Self {
-        DataDbs {
-            info,
-            primary,
-            secondary,
-            secondary_dup,
-        }
-    }
-
     #[cfg(test)]
     pub fn debug_new() -> Self {
-        DataDbs::new(
-            Db::debug_new(false),
-            Db::debug_new(false),
-            Db::debug_new(false),
-            Db::debug_new(true),
-            Db::debug_new(false),
-        )
+        DataDbs {
+            info: Db::debug_new(false),
+            primary: Db::debug_new(false),
+            secondary: Db::debug_new(false),
+            secondary_dup: Db::debug_new(true),
+        }
     }
 }
