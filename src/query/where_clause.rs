@@ -69,7 +69,6 @@ impl WhereClause {
             let mut decreased = false;
             for i in (self.prefix_len..self.upper_key.len()).rev() {
                 if let Some(subtracted) = self.upper_key[i].checked_sub(1) {
-                    eprintln!("before {}, after {}", self.upper_key[i], subtracted);
                     self.upper_key[i] = subtracted;
                     decreased = true;
                     break;

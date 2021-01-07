@@ -8,9 +8,9 @@ extern crate bindgen;
 #[path = "bindgen.rs"]
 mod generate;
 
+use cc::Build;
 use std::env;
 use std::path::PathBuf;
-use cc::Build;
 
 fn main() {
     #[cfg(feature = "bindgen")]
@@ -32,7 +32,6 @@ fn main() {
             .flag_if_supported("-Wno-unused-parameter")
             .flag_if_supported("-Wbad-function-cast")
             .flag_if_supported("-Wuninitialized");
-        //eprintln!("BUILDSIMON");
         builder.compile("liblmdb.a")
     }
 }
