@@ -36,19 +36,22 @@ impl IsarAsyncTxn {
             txn: Arc::new(Mutex::new(None)),
         };
         let txn = async_txn.txn.clone();
-
-        run_async(move || loop {
+        run_async(move || {
             let new_txn = isar.begin_txn(write);
-            if let Ok(new_txn) = new_txn {
-                txn.lock().unwrap().replace(IsarTxnSend(new_txn));
-
-                loop {
-                    eprintln!("loop");
-                    let (job, stop) = rx.recv().unwrap();
-                    job();
-                    if stop {
-                        break;
+            match new_txn {
+                Ok(new_txn) => {
+                    txn.lock().unwrap().replace(IsarTxnSend(new_txn));
+                    dart_post_int(port, 0);
+                    loop {
+                        let (job, stop) = rx.recv().unwrap();
+                        job();
+                        if stop {
+                            break;
+                        }
                     }
+                }
+                Err(e) => {
+                    dart_post_int(port, 1);
                 }
             }
         });
@@ -59,12 +62,10 @@ impl IsarAsyncTxn {
     pub fn exec_internal<F: FnOnce() -> Result<()> + Send + 'static>(&self, job: F, stop: bool) {
         let port = self.port;
         let handle_response_job = move || {
-            eprintln!("Starting job");
             let result = match job() {
                 Ok(()) => 0,
                 Err(e) => 1,
             };
-            eprintln!("Job result: {}", result);
             dart_post_int(port, result);
         };
         self.tx.send((Box::new(handle_response_job), stop)).unwrap();
@@ -84,12 +85,16 @@ impl IsarAsyncTxn {
     }
 
     pub fn commit(self) {
+        let port = self.port;
         let txn = self.txn.clone();
         let job = move || -> Result<()> {
             let mut lock = txn.lock().unwrap();
             if let Some(txn) = (*lock).take() {
-                txn.0.commit()
+                txn.0.commit()?;
+                dart_post_int(port, 0);
+                Ok(())
             } else {
+                dart_post_int(port, 1);
                 illegal_state("Transaction not available.")
             }
         };
@@ -97,12 +102,16 @@ impl IsarAsyncTxn {
     }
 
     pub fn abort(self) {
+        let port = self.port;
         let txn = self.txn.clone();
         let job = move || -> Result<()> {
             let mut txn = txn.lock().unwrap();
             if let Some(txn) = txn.take() {
-                txn.0.abort()
+                txn.0.abort()?;
+                dart_post_int(port, 0);
+                Ok(())
             } else {
+                dart_post_int(port, 1);
                 illegal_state("Transaction not available.")
             }
         };

@@ -139,7 +139,7 @@ mod tests {
         overlapping: bool,
     ) -> Vec<u32> {
         let txn = isar.begin_txn(false).unwrap();
-        let lmdb_txn = txn.get_read_txn().unwrap();
+        let lmdb_txn = txn.get_txn().unwrap();
         let primary_cursor = isar.debug_get_primary_db().cursor(lmdb_txn).unwrap();
         let secondary_cursor = isar.debug_get_secondary_db().cursor(lmdb_txn).unwrap();
         let secondary_dup_cursor = isar.debug_get_secondary_dup_db().cursor(lmdb_txn).unwrap();
