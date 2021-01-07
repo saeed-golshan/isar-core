@@ -23,7 +23,7 @@ if [ "$1" = "x86" ]; then
   export CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER="$COMPILER_DIR/x86_64-linux-android-clang"
 
   cargo build --target x86_64-linux-android --release
-  mv "target/x86_64-linux-android/release/libisar_core.so" "libisar_androidx86.so"
+  mv "target/x86_64-linux-android/release/libisar_core_dart_ffi.so" "libisar_androidx86.so"
 else
   cp "$COMPILER_DIR/aarch64-linux-android29-clang" "$COMPILER_DIR/aarch64-linux-android-clang"
   rustup target add aarch64-linux-android
@@ -32,7 +32,7 @@ else
   export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="$COMPILER_DIR/aarch64-linux-android-clang"
 
   cargo build --target aarch64-linux-android --release
-  mv "target/aarch64-linux-android/release/libisar_core.so" "libisar_android.so"
+  mv "target/aarch64-linux-android/release/libisar_core_dart_ffi.so" "libisar_android.so"
 fi
 
 
