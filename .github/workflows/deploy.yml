@@ -33,11 +33,12 @@ jobs:
       with:
         submodules: true
     - name: Build
+      working-directory: dart-ffi
       run: bash tools/${{ matrix.script }}
     - name: Upload binary
       uses: svenstaro/upload-release-action@v1-release
       with:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
-        file: ${{ matrix.artifact_name }}
+        file: dart-ffi/${{ matrix.artifact_name }}
         asset_name: ${{ matrix.artifact_name }}
         tag: ${{ github.ref }}
