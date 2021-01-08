@@ -108,7 +108,7 @@ pub fn ref_map<K: Eq + Hash, V>(map: &HashMap<K, V>) -> HashMap<&K, &V> {
 
 pub fn dump_db(db: Db, txn: &IsarTxn, prefix: Option<&[u8]>) -> HashSet<(Vec<u8>, Vec<u8>)> {
     let mut set = HashSet::new();
-    let mut cursor = db.cursor(txn.get_txn().unwrap()).unwrap();
+    let mut cursor = db.cursor(txn.get_txn()).unwrap();
 
     let result = if let Some(prefix) = prefix {
         cursor.move_to_gte(prefix).unwrap()

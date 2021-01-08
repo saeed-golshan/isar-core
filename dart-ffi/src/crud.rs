@@ -3,6 +3,8 @@ use crate::raw_object_set::{RawObject, RawObjectSend};
 use isar_core::collection::IsarCollection;
 use isar_core::error::Result;
 use isar_core::txn::IsarTxn;
+use std::ffi::CString;
+use std::os::raw::c_char;
 
 #[no_mangle]
 pub unsafe extern "C" fn isar_get(
@@ -105,4 +107,48 @@ pub unsafe extern "C" fn isar_delete_all_async(
     txn: &IsarAsyncTxn,
 ) {
     txn.exec(move |txn| collection.delete_all(txn));
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn isar_export_json(
+    collection: &IsarCollection,
+    txn: &IsarTxn,
+    json: *mut *mut c_char,
+    json_length: *mut u32,
+) -> i32 {
+    isar_try! {
+        let exported_json = collection.export_json(txn)?.to_string();
+        json_length.write(exported_json.len() as u32);
+        let json_str = CString::new(exported_json).unwrap();
+        json.write(json_str.into_raw());
+    }
+}
+
+struct JsonStr(*mut *mut c_char);
+unsafe impl Send for JsonStr {}
+
+struct JsonLen(*mut u32);
+unsafe impl Send for JsonLen {}
+
+#[no_mangle]
+pub unsafe extern "C" fn isar_export_json_async(
+    collection: &'static IsarCollection,
+    txn: &IsarAsyncTxn,
+    json: *mut *mut c_char,
+    json_length: *mut u32,
+) {
+    let json = JsonStr(json);
+    let json_length = JsonLen(json_length);
+    txn.exec(move |txn| -> Result<()> {
+        let exported_json = collection.export_json(txn)?.to_string();
+        json_length.0.write(exported_json.len() as u32);
+        let json_str = CString::new(exported_json).unwrap();
+        json.0.write(json_str.into_raw());
+        Ok(())
+    });
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn isar_free_json(json: *mut c_char) {
+    CString::from_raw(json);
 }

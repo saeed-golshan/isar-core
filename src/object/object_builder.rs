@@ -14,20 +14,17 @@ pub struct ObjectBuilder<'a> {
 
 impl<'a> ObjectBuilder<'a> {
     pub(crate) fn new(object_info: &ObjectInfo) -> ObjectBuilder {
+        let static_size = object_info.get_static_size();
         ObjectBuilder {
-            object: Vec::with_capacity(object_info.static_size),
+            object: Vec::with_capacity(static_size),
             object_info,
             property_index: 0,
-            dynamic_offset: object_info.static_size,
+            dynamic_offset: static_size,
         }
     }
 
     fn get_next_property(&mut self) -> (usize, DataType) {
-        let property = self
-            .object_info
-            .properties
-            .get(self.property_index)
-            .unwrap();
+        let property = self.object_info.get_property(self.property_index).unwrap();
         self.property_index += 1;
         (property.offset, property.data_type)
     }

@@ -10,11 +10,15 @@ use crate::object::property::Property;
 use crate::query::where_clause::WhereClause;
 use crate::txn::IsarTxn;
 
+use itertools::Itertools;
+use serde_json::{json, Value};
+
 #[cfg(test)]
 use {crate::utils::debug::dump_db, hashbrown::HashSet};
 
 pub struct IsarCollection {
     id: u16,
+    name: String,
     object_info: ObjectInfo,
     indexes: Vec<Index>,
     db: Db,
@@ -22,14 +26,25 @@ pub struct IsarCollection {
 }
 
 impl IsarCollection {
-    pub(crate) fn new(id: u16, object_info: ObjectInfo, indexes: Vec<Index>, db: Db) -> Self {
+    pub(crate) fn new(
+        id: u16,
+        name: String,
+        object_info: ObjectInfo,
+        indexes: Vec<Index>,
+        db: Db,
+    ) -> Self {
         IsarCollection {
             id,
+            name,
             object_info,
             indexes,
             db,
             oidg: ObjectIdGenerator::new(id),
         }
+    }
+
+    pub fn get_name(&self) -> &str {
+        &self.name
     }
 
     pub fn get_object_builder(&self) -> ObjectBuilder {
@@ -54,7 +69,7 @@ impl IsarCollection {
         self.db.get(txn.get_txn(), &oid_bytes)
     }
 
-    pub fn put(&self, txn: &mut IsarTxn, oid: Option<ObjectId>, object: &[u8]) -> Result<ObjectId> {
+    pub fn put(&self, txn: &IsarTxn, oid: Option<ObjectId>, object: &[u8]) -> Result<ObjectId> {
         txn.exec_atomic_write(|lmdb_txn| {
             let oid = if let Some(oid) = oid {
                 self.verify_object_id(oid)?;
@@ -78,7 +93,7 @@ impl IsarCollection {
         })
     }
 
-    pub fn delete(&self, txn: &mut IsarTxn, oid: ObjectId) -> Result<()> {
+    pub fn delete(&self, txn: &IsarTxn, oid: ObjectId) -> Result<()> {
         self.verify_object_id(oid)?;
         txn.exec_atomic_write(|lmdb_txn| {
             if self.delete_from_indexes(&lmdb_txn, oid)? {
@@ -89,7 +104,7 @@ impl IsarCollection {
         })
     }
 
-    pub fn delete_all(&self, txn: &mut IsarTxn) -> Result<()> {
+    pub fn delete_all(&self, txn: &IsarTxn) -> Result<()> {
         txn.exec_atomic_write(|lmdb_txn| {
             for index in &self.indexes {
                 index.clear(&lmdb_txn)?;
@@ -110,8 +125,12 @@ impl IsarCollection {
             .map(|i| i.create_where_clause())
     }
 
-    pub fn get_property_by_index(&self, property_index: usize) -> Option<Property> {
-        self.object_info.properties.get(property_index).copied()
+    pub fn get_property(&self, property_index: usize) -> Option<Property> {
+        self.object_info.get_property(property_index)
+    }
+
+    pub fn get_property_by_name(&self, property_name: &str) -> Option<Property> {
+        self.object_info.get_property_by_name(property_name)
     }
 
     fn delete_from_indexes(&self, lmdb_txn: &Txn, oid: ObjectId) -> Result<bool> {
@@ -125,6 +144,19 @@ impl IsarCollection {
         } else {
             Ok(false)
         }
+    }
+
+    pub fn export_json(&self, txn: &IsarTxn) -> Result<Value> {
+        let mut cursor = self.db.cursor(txn.get_txn())?;
+        let result = cursor.move_to_gte(&self.id.to_le_bytes())?;
+        if result.is_none() {
+            return Ok(json!(Vec::<Value>::new()));
+        }
+        let items: Result<Vec<Value>> = cursor
+            .iter()
+            .map_ok(|(key, val)| self.object_info.entry_to_json(key, val))
+            .collect();
+        Ok(json!(items?))
     }
 
     #[cfg(test)]
@@ -163,22 +195,22 @@ mod tests {
     #[test]
     fn test_put_new() {
         isar!(isar, col => col!(field1 => Int));
-        let mut txn = isar.begin_txn(true).unwrap();
+        let txn = isar.begin_txn(true).unwrap();
 
         let mut builder = col.get_object_builder();
         builder.write_int(1111111);
         let object1 = builder.finish();
-        let oid1 = col.put(&mut txn, None, object1.as_bytes()).unwrap();
+        let oid1 = col.put(&txn, None, object1.as_bytes()).unwrap();
 
         let mut builder = col.get_object_builder();
         builder.write_int(123123123);
         let object2 = builder.finish();
-        let oid2 = col.put(&mut txn, None, object2.as_bytes()).unwrap();
+        let oid2 = col.put(&txn, None, object2.as_bytes()).unwrap();
 
         let mut builder = col.get_object_builder();
         builder.write_int(123123123);
         let object3 = builder.finish();
-        let oid3 = col.put(&mut txn, None, object3.as_bytes()).unwrap();
+        let oid3 = col.put(&txn, None, object3.as_bytes()).unwrap();
 
         assert_eq!(
             col.debug_dump(&txn),
@@ -194,26 +226,24 @@ mod tests {
     fn test_put_existing() {
         isar!(isar, col => col!(field1 => Int));
 
-        let mut txn = isar.begin_txn(true).unwrap();
+        let txn = isar.begin_txn(true).unwrap();
 
         let mut builder = col.get_object_builder();
         builder.write_int(1111111);
         let object1 = builder.finish();
-        let oid1 = col.put(&mut txn, None, object1.as_bytes()).unwrap();
+        let oid1 = col.put(&txn, None, object1.as_bytes()).unwrap();
 
         let mut builder = col.get_object_builder();
         builder.write_int(123123123);
         let object2 = builder.finish();
-        let oid2 = col.put(&mut txn, Some(oid1), object2.as_bytes()).unwrap();
+        let oid2 = col.put(&txn, Some(oid1), object2.as_bytes()).unwrap();
         assert_eq!(oid1, oid2);
 
         let new_oid = col.oidg.generate();
         let mut builder = col.get_object_builder();
         builder.write_int(55555555);
         let object3 = builder.finish();
-        let oid3 = col
-            .put(&mut txn, Some(new_oid), object3.as_bytes())
-            .unwrap();
+        let oid3 = col.put(&txn, Some(new_oid), object3.as_bytes()).unwrap();
         assert_eq!(new_oid, oid3);
 
         assert_eq!(
@@ -229,12 +259,12 @@ mod tests {
     fn test_put_creates_index() {
         isar!(isar, col => col!(field1 => Int; ind!(field1)));
 
-        let mut txn = isar.begin_txn(true).unwrap();
+        let txn = isar.begin_txn(true).unwrap();
 
         let mut builder = col.get_object_builder();
         builder.write_int(1234);
         let object = builder.finish();
-        let oid = col.put(&mut txn, None, object.as_bytes()).unwrap();
+        let oid = col.put(&txn, None, object.as_bytes()).unwrap();
 
         let index = &col.indexes[0];
         assert_eq!(
@@ -250,17 +280,17 @@ mod tests {
     fn test_put_clears_old_index() {
         isar!(isar, col => col!(field1 => Int; ind!(field1)));
 
-        let mut txn = isar.begin_txn(true).unwrap();
+        let txn = isar.begin_txn(true).unwrap();
 
         let mut builder = col.get_object_builder();
         builder.write_int(1234);
         let object = builder.finish();
-        let oid = col.put(&mut txn, None, object.as_bytes()).unwrap();
+        let oid = col.put(&txn, None, object.as_bytes()).unwrap();
 
         let mut builder = col.get_object_builder();
         builder.write_int(5678);
         let object2 = builder.finish();
-        col.put(&mut txn, Some(oid), object2.as_bytes()).unwrap();
+        col.put(&txn, Some(oid), object2.as_bytes()).unwrap();
 
         let index = &col.indexes[0];
         assert_eq!(
@@ -276,19 +306,19 @@ mod tests {
     fn test_delete() {
         isar!(isar, col => col!(field1 => Int; ind!(field1)));
 
-        let mut txn = isar.begin_txn(true).unwrap();
+        let txn = isar.begin_txn(true).unwrap();
 
         let mut builder = col.get_object_builder();
         builder.write_int(12345);
         let object = builder.finish();
-        let oid = col.put(&mut txn, None, object.as_bytes()).unwrap();
+        let oid = col.put(&txn, None, object.as_bytes()).unwrap();
 
         let mut builder = col.get_object_builder();
         builder.write_int(54321);
         let object2 = builder.finish();
-        let oid2 = col.put(&mut txn, None, object2.as_bytes()).unwrap();
+        let oid2 = col.put(&txn, None, object2.as_bytes()).unwrap();
 
-        col.delete(&mut txn, oid).unwrap();
+        col.delete(&txn, oid).unwrap();
 
         assert_eq!(
             col.debug_dump(&txn),
@@ -309,7 +339,7 @@ mod tests {
     fn test_delete_all() {
         isar!(isar, col1 => col!(f1 => Int; ind!(f1)), col2 => col!(f2 => Int; ind!(f2)));
 
-        let mut txn = isar.begin_txn(true).unwrap();
+        let txn = isar.begin_txn(true).unwrap();
 
         let mut builder = col1.get_object_builder();
         builder.write_int(12345);
@@ -319,12 +349,12 @@ mod tests {
         builder.write_int(54321);
         let object2 = builder.finish();
 
-        col1.put(&mut txn, None, object1.as_bytes()).unwrap();
-        col1.put(&mut txn, None, object2.as_bytes()).unwrap();
-        let oid1 = col2.put(&mut txn, None, object1.as_bytes()).unwrap();
-        let oid2 = col2.put(&mut txn, None, object2.as_bytes()).unwrap();
+        col1.put(&txn, None, object1.as_bytes()).unwrap();
+        col1.put(&txn, None, object2.as_bytes()).unwrap();
+        let oid1 = col2.put(&txn, None, object1.as_bytes()).unwrap();
+        let oid2 = col2.put(&txn, None, object2.as_bytes()).unwrap();
 
-        col1.delete_all(&mut txn).unwrap();
+        col1.delete_all(&txn).unwrap();
 
         assert!(col1.debug_dump(&txn).is_empty());
         assert!(&col1.indexes[0].debug_dump(&txn).is_empty());

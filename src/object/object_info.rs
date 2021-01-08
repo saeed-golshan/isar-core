@@ -1,18 +1,21 @@
 use crate::object::data_type::DataType;
 use crate::object::object_id::ObjectId;
 use crate::object::property::Property;
+use serde_json::{json, Map, Value};
 
 #[cfg_attr(test, derive(Clone))]
 pub(crate) struct ObjectInfo {
-    pub properties: Vec<Property>,
-    pub static_size: usize,
+    properties: Vec<Property>,
+    property_names: Vec<String>,
+    static_size: usize,
 }
 
 impl ObjectInfo {
-    pub fn new(properties: Vec<Property>) -> ObjectInfo {
+    pub fn new(properties: Vec<Property>, property_names: Vec<String>) -> ObjectInfo {
         let static_size = Self::calculate_static_size(&properties);
         ObjectInfo {
             properties,
+            property_names,
             static_size,
         }
     }
@@ -20,6 +23,49 @@ impl ObjectInfo {
     fn calculate_static_size(properties: &[Property]) -> usize {
         let last_property = properties.last().unwrap();
         last_property.offset + last_property.data_type.get_static_size()
+    }
+
+    pub fn get_static_size(&self) -> usize {
+        self.static_size
+    }
+
+    pub fn get_property(&self, index: usize) -> Option<Property> {
+        self.properties.get(index).copied()
+    }
+
+    pub fn get_property_by_name(&self, property_name: &str) -> Option<Property> {
+        self.property_names
+            .iter()
+            .position(|n| n == property_name)
+            .map(|index| self.properties.get(index).unwrap())
+            .copied()
+    }
+
+    pub fn entry_to_json(&self, key: &[u8], object: &[u8]) -> Value {
+        let oid = ObjectId::from_bytes(key);
+        let mut oid_str = oid.get_time().to_string();
+        oid_str.push_str(&oid.get_rand_counter().to_string());
+        let mut object_map = Map::new();
+        object_map.insert("id".to_string(), json!(oid_str));
+        let properties = self.property_names.iter().zip(self.properties.iter());
+        for (name, property) in properties {
+            let value = match property.data_type {
+                DataType::Byte => json!(property.get_byte(object)),
+                DataType::Int => json!(property.get_int(object)),
+                DataType::Float => json!(property.get_float(object)),
+                DataType::Long => json!(property.get_long(object)),
+                DataType::Double => json!(property.get_double(object)),
+                DataType::String => json!(property.get_string(object)),
+                DataType::ByteList => json!(property.get_byte_list(object)),
+                DataType::IntList => json!(property.get_int_list(object)),
+                DataType::FloatList => json!(property.get_float_list(object)),
+                DataType::LongList => json!(property.get_float_list(object)),
+                DataType::DoubleList => json!(property.get_double_list(object)),
+                DataType::StringList => json!(property.get_string_list(object)),
+            };
+            object_map.insert(name.to_string(), value);
+        }
+        json!(object_map)
     }
 
     pub fn verify_object(&self, object: &[u8]) -> bool {

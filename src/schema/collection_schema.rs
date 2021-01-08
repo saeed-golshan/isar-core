@@ -125,17 +125,24 @@ impl CollectionSchema {
     }
 
     pub(super) fn get_isar_collection(&self, dbs: DataDbs) -> IsarCollection {
-        let properties = self.get_properties();
+        let (properties, property_names) = self.get_properties();
         let indexes = self.get_indexes(&properties, dbs);
-        let object_info = ObjectInfo::new(properties);
-        IsarCollection::new(self.id.unwrap(), object_info, indexes, dbs.primary)
+        let object_info = ObjectInfo::new(properties, property_names);
+        IsarCollection::new(
+            self.id.unwrap(),
+            self.name.clone(),
+            object_info,
+            indexes,
+            dbs.primary,
+        )
     }
 
-    fn get_properties(&self) -> Vec<Property> {
+    fn get_properties(&self) -> (Vec<Property>, Vec<String>) {
         let oid_offset = ObjectId::get_size();
         let mut offset = oid_offset;
 
-        self.properties
+        let properties = self
+            .properties
             .iter()
             .map(|f| {
                 let size = f.data_type.get_static_size();
@@ -149,7 +156,9 @@ impl CollectionSchema {
 
                 property
             })
-            .collect()
+            .collect();
+        let property_names = self.properties.iter().map(|p| p.name.clone()).collect();
+        (properties, property_names)
     }
 
     fn get_indexes(&self, properties: &[Property], dbs: DataDbs) -> Vec<Index> {
@@ -313,7 +322,7 @@ mod tests {
             let col = schema.get_isar_collection(DataDbs::debug_new());
             let mut offsets = vec![];
             for i in 0..schema.properties.len() {
-                offsets.push(col.get_property_by_index(i).unwrap().offset);
+                offsets.push(col.get_property(i).unwrap().offset);
             }
             offsets
         }

@@ -32,7 +32,7 @@ pub unsafe extern "C" fn isar_filter_is_null(
     is_null: bool,
     property_index: u32,
 ) -> i32 {
-    let property = collection.get_property_by_index(property_index as usize);
+    let property = collection.get_property(property_index as usize);
     isar_try! {
         if let Some(property) = property {
             let query_filter = IsNull::filter(property, is_null);
@@ -57,7 +57,7 @@ macro_rules! filter_between_ffi {
             include_upper: bool,
             property_index: u32,
         ) -> i32 {
-            let property = collection.get_property_by_index(property_index as usize);
+            let property = collection.get_property(property_index as usize);
             isar_try! {
                 if !include_lower {
                     if let Some(new_lower) = $next(lower) {
@@ -193,9 +193,7 @@ macro_rules! filter_not_equal_to_ffi {
             value: $type,
             property_index: u32,
         ) -> i32 {
-            let property = collection
-                .unwrap()
-                .get_property_by_index(property_index as usize);
+            let property = collection.unwrap().get_property(property_index as usize);
             isar_try! {
                 if let Some(property) = property {
                     let query_filter = isar_core::query::filter::$filter_name::filter(property, value)?;

@@ -77,6 +77,12 @@ impl IsarInstance {
         self.collections.get(collection_index)
     }
 
+    pub fn get_collection_by_name(&self, collection_name: &str) -> Option<&IsarCollection> {
+        self.collections
+            .iter()
+            .find(|c| c.get_name() == collection_name)
+    }
+
     pub fn create_query_builder(&self, collection: &IsarCollection) -> QueryBuilder {
         QueryBuilder::new(
             collection,

@@ -142,7 +142,7 @@ mod tests {
         overlapping: bool,
     ) -> Vec<u32> {
         let txn = isar.begin_txn(false).unwrap();
-        let lmdb_txn = txn.get_txn().unwrap();
+        let lmdb_txn = txn.get_txn();
         let primary_cursor = isar.debug_get_primary_db().cursor(lmdb_txn).unwrap();
         let secondary_cursor = isar.debug_get_secondary_db().cursor(lmdb_txn).unwrap();
         let secondary_dup_cursor = isar.debug_get_secondary_dup_db().cursor(lmdb_txn).unwrap();
@@ -209,7 +209,10 @@ mod tests {
 
         let mut wc = col.create_secondary_where_clause(0).unwrap();
         wc.add_oid_time(u32::MAX, u32::MAX);
-        assert_eq!(execute_where_clauses(&isar, &[wc], false), vec![]);
+        assert_eq!(
+            execute_where_clauses(&isar, &[wc], false),
+            Vec::<u32>::new()
+        );
     }
 
     #[test]
@@ -230,7 +233,10 @@ mod tests {
 
         let mut wc = col.create_secondary_where_clause(0).unwrap();
         wc.add_int(50, i32::MAX);
-        assert_eq!(execute_where_clauses(&isar, &[wc], false), vec![]);
+        assert_eq!(
+            execute_where_clauses(&isar, &[wc], false),
+            Vec::<u32>::new()
+        );
     }
 
     #[test]
@@ -251,7 +257,10 @@ mod tests {
 
         let mut wc = col.create_secondary_where_clause(0).unwrap();
         wc.add_int(50, i32::MAX);
-        assert_eq!(execute_where_clauses(&isar, &[wc], false), vec![]);
+        assert_eq!(
+            execute_where_clauses(&isar, &[wc], false),
+            Vec::<u32>::new()
+        );
     }
 
     #[test]
