@@ -12,33 +12,28 @@ use isar_core::txn::IsarTxn;
 
 #[no_mangle]
 pub extern "C" fn isar_qb_create(
-    isar: Option<&IsarInstance>,
-    collection: Option<&IsarCollection>,
+    isar: &IsarInstance,
+    collection: &IsarCollection,
 ) -> *mut QueryBuilder {
-    let builder = isar.unwrap().create_query_builder(collection.unwrap());
+    let builder = isar.create_query_builder(collection);
     Box::into_raw(Box::new(builder))
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn isar_qb_add_where_clause(
-    builder: Option<&mut QueryBuilder>,
+    builder: &mut QueryBuilder,
     where_clause: *mut WhereClause,
     include_lower: bool,
     include_upper: bool,
 ) {
     let wc = *Box::from_raw(where_clause);
-    builder
-        .unwrap()
-        .add_where_clause(wc, include_lower, include_upper);
+    builder.add_where_clause(wc, include_lower, include_upper);
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn isar_qb_set_filter(
-    builder: Option<&mut QueryBuilder>,
-    filter: *mut Filter,
-) {
+pub unsafe extern "C" fn isar_qb_set_filter(builder: &mut QueryBuilder, filter: *mut Filter) {
     let filter = *Box::from_raw(filter);
-    builder.unwrap().set_filter(filter);
+    builder.set_filter(filter);
 }
 
 #[no_mangle]
@@ -52,7 +47,7 @@ pub unsafe extern "C" fn isar_q_find_all(
     query: &Query,
     txn: &IsarTxn,
     result: &mut RawObjectSet,
-) -> u8 {
+) -> i32 {
     isar_try! {
         result.fill_from_query(query, txn)?;
     }
@@ -69,7 +64,7 @@ pub unsafe extern "C" fn isar_q_find_all_async(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn isar_q_count(query: &Query, txn: &IsarTxn, count: &mut i64) -> u8 {
+pub unsafe extern "C" fn isar_q_count(query: &Query, txn: &IsarTxn, count: &mut i64) -> i32 {
     isar_try! {
         *count = query.count(txn)? as i64;
     }

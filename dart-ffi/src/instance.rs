@@ -57,12 +57,12 @@ pub unsafe extern "C" fn isar_create_instance(
 
 #[no_mangle]
 pub unsafe extern "C" fn isar_get_collection<'a>(
-    isar: Option<&'a mut IsarInstance>,
+    isar: &'a mut IsarInstance,
     collection: *mut &'a IsarCollection,
     index: u32,
-) -> u8 {
+) -> i32 {
     isar_try! {
-        let new_collection = isar.unwrap().get_collection(index as usize);
+        let new_collection = isar.get_collection(index as usize);
         if let Some(new_collection) = new_collection {
             collection.write(new_collection);
         } else {

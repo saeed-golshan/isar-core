@@ -9,7 +9,7 @@ pub unsafe extern "C" fn isar_get(
     collection: &IsarCollection,
     txn: &IsarTxn,
     object: &mut RawObject,
-) -> u8 {
+) -> i32 {
     isar_try! {
         let object_id = object.get_object_id(collection).unwrap();
         let result = collection.get(txn, object_id)?;
@@ -45,7 +45,7 @@ pub unsafe extern "C" fn isar_put(
     collection: &mut IsarCollection,
     txn: &mut IsarTxn,
     object: &mut RawObject,
-) -> u8 {
+) -> i32 {
     isar_try! {
         let oid = object.get_object_id(collection);
         let data = object.object_as_slice();
@@ -75,7 +75,7 @@ pub unsafe extern "C" fn isar_delete(
     collection: &IsarCollection,
     txn: &mut IsarTxn,
     object: &RawObject,
-) -> u8 {
+) -> i32 {
     isar_try! {
     let oid = object.get_object_id(collection).unwrap();
         collection.delete(txn, oid)?;
@@ -93,7 +93,7 @@ pub unsafe extern "C" fn isar_delete_async(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn isar_delete_all(collection: &IsarCollection, txn: &mut IsarTxn) -> u8 {
+pub unsafe extern "C" fn isar_delete_all(collection: &IsarCollection, txn: &mut IsarTxn) -> i32 {
     isar_try! {
         collection.delete_all(txn)?;
     }

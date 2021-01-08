@@ -5,7 +5,7 @@ use std::ffi::CStr;
 use std::os::raw::c_char;
 
 #[macro_use]
-mod isar_try;
+mod error;
 
 mod async_txn;
 pub mod crud;

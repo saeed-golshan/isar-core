@@ -18,9 +18,7 @@ pub enum Filter {
     LongBetween(LongBetween),
     LongNotEqual(LongNotEqual),
     FloatBetween(FloatBetween),
-    FloatNotEqual(FloatNotEqual),
     DoubleBetween(DoubleBetween),
-    DoubleNotEqual(DoubleNotEqual),
     /*StrAnyOf(StrAnyOf),
     StrStartsWith(),
     StrEndsWith(),
@@ -151,31 +149,9 @@ macro_rules! primitive_filter_not_equal {
     };
 }
 
-#[macro_export]
-macro_rules! float_filter_not_equal {
-    ($name:ident, $data_type:ident, $type:ty, $prop_accessor:ident) => {
-        filter_not_equal!($name, $data_type, $type);
-
-        impl Condition for $name {
-            fn evaluate(&self, object: &[u8]) -> bool {
-                let val = self.property.$prop_accessor(object);
-                if self.value.is_nan() {
-                    !val.is_nan()
-                } else if val.is_nan() {
-                    !self.value.is_nan()
-                } else {
-                    (self.value - val).abs() < <$type>::EPSILON
-                }
-            }
-        }
-    };
-}
-
 primitive_filter_not_equal!(ByteNotEqual, Byte, u8, get_byte);
 primitive_filter_not_equal!(IntNotEqual, Int, i32, get_int);
 primitive_filter_not_equal!(LongNotEqual, Long, i64, get_long);
-float_filter_not_equal!(FloatNotEqual, Float, f32, get_float);
-float_filter_not_equal!(DoubleNotEqual, Double, f64, get_double);
 
 /*pub struct StrAnyOf {
     property: Property,

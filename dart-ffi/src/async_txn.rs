@@ -1,4 +1,5 @@
 use crate::dart::{dart_post_int, DartPort};
+use crate::error::ErrCode;
 use isar_core::error::{IsarError, Result};
 use isar_core::instance::IsarInstance;
 use isar_core::txn::IsarTxn;
@@ -51,7 +52,7 @@ impl IsarAsyncTxn {
                     }
                 }
                 Err(e) => {
-                    dart_post_int(port, 1);
+                    dart_post_int(port, e.err_code());
                 }
             }
         });
@@ -64,7 +65,7 @@ impl IsarAsyncTxn {
         let handle_response_job = move || {
             let result = match job() {
                 Ok(()) => 0,
-                Err(e) => 1,
+                Err(e) => e.err_code(),
             };
             dart_post_int(port, result);
         };
@@ -85,7 +86,6 @@ impl IsarAsyncTxn {
     }
 
     pub fn commit(self) {
-        let port = self.port;
         let txn = self.txn.clone();
         let job = move || -> Result<()> {
             let mut lock = txn.lock().unwrap();
@@ -99,7 +99,6 @@ impl IsarAsyncTxn {
     }
 
     pub fn abort(self) {
-        let port = self.port;
         let txn = self.txn.clone();
         let job = move || -> Result<()> {
             let mut txn = txn.lock().unwrap();

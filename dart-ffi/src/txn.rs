@@ -5,12 +5,12 @@ use isar_core::txn::IsarTxn;
 
 #[no_mangle]
 pub unsafe extern "C" fn isar_txn_begin<'env>(
-    isar: Option<&'env IsarInstance>,
+    isar: &'env IsarInstance,
     txn: *mut *const IsarTxn<'env>,
     write: bool,
-) -> u8 {
+) -> i32 {
     isar_try! {
-        let new_txn = isar.unwrap().begin_txn(write)?;
+        let new_txn = isar.begin_txn(write)?;
         let txn_ptr = Box::into_raw(Box::new(new_txn));
         txn.write(txn_ptr);
     }
@@ -29,7 +29,7 @@ pub unsafe extern "C" fn isar_txn_begin_async(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn isar_txn_commit(txn: *mut IsarTxn) -> u8 {
+pub unsafe extern "C" fn isar_txn_commit(txn: *mut IsarTxn) -> i32 {
     isar_try! {
         let txn = Box::from_raw(txn);
         txn.commit()?;

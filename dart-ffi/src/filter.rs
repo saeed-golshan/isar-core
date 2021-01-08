@@ -27,14 +27,12 @@ pub unsafe extern "C" fn isar_filter_and_or(
 
 #[no_mangle]
 pub unsafe extern "C" fn isar_filter_is_null(
-    collection: Option<&IsarCollection>,
+    collection: &IsarCollection,
     filter: *mut *const Filter,
     is_null: bool,
     property_index: u32,
-) -> u8 {
-    let property = collection
-        .unwrap()
-        .get_property_by_index(property_index as usize);
+) -> i32 {
+    let property = collection.get_property_by_index(property_index as usize);
     isar_try! {
         if let Some(property) = property {
             let query_filter = IsNull::filter(property, is_null);
@@ -51,17 +49,15 @@ macro_rules! filter_between_ffi {
     ($filter_name:ident, $function_name:ident, $next:ident, $prev:ident, $type:ty) => {
         #[no_mangle]
         pub unsafe extern "C" fn $function_name(
-            collection: Option<&IsarCollection>,
+            collection: &IsarCollection,
             filter: *mut *const Filter,
             mut lower: $type,
             include_lower: bool,
             mut upper: $type,
             include_upper: bool,
             property_index: u32,
-        ) -> u8 {
-            let property = collection
-                .unwrap()
-                .get_property_by_index(property_index as usize);
+        ) -> i32 {
+            let property = collection.get_property_by_index(property_index as usize);
             isar_try! {
                 if !include_lower {
                     if let Some(new_lower) = $next(lower) {
@@ -196,7 +192,7 @@ macro_rules! filter_not_equal_to_ffi {
             filter: *mut *const Filter,
             value: $type,
             property_index: u32,
-        ) -> u8 {
+        ) -> i32 {
             let property = collection
                 .unwrap()
                 .get_property_by_index(property_index as usize);
@@ -215,6 +211,4 @@ macro_rules! filter_not_equal_to_ffi {
 
 filter_not_equal_to_ffi!(ByteNotEqual, isar_filter_byte_not_equal, u8);
 filter_not_equal_to_ffi!(IntNotEqual, isar_filter_int_not_equal, i32);
-filter_not_equal_to_ffi!(FloatNotEqual, isar_filter_float_not_equal, f32);
 filter_not_equal_to_ffi!(LongNotEqual, isar_filter_long_not_equal, i64);
-filter_not_equal_to_ffi!(DoubleNotEqual, isar_filter_double_not_equal, f64);

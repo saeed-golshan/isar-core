@@ -41,12 +41,6 @@ pub enum IsarError {
 
     #[error("LmdbError: {code:?}")]
     LmdbError { code: i32 },
-
-    #[error("Error: {source:?} {message:?}")]
-    Error {
-        source: Option<Box<dyn Error>>,
-        message: String,
-    },
 }
 
 impl IsarError {}

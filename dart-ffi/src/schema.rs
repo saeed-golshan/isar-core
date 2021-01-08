@@ -13,49 +13,49 @@ pub extern "C" fn isar_schema_create() -> *mut Schema {
 
 #[no_mangle]
 pub unsafe extern "C" fn isar_schema_create_collection(
-    collection: *mut *const CollectionSchema,
+    collection_schema: *mut *const CollectionSchema,
     name: *const c_char,
-) -> u8 {
+) -> i32 {
     isar_try! {
         let name_str = from_c_str(name)?;
         let col = CollectionSchema::new(name_str);
         let col_ptr = Box::into_raw(Box::new(col));
-        collection.write(col_ptr);
+        collection_schema.write(col_ptr);
     }
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn isar_schema_add_collection(
-    schema: Option<&mut Schema>,
-    collection: *mut CollectionSchema,
-) -> u8 {
+    schema: &mut Schema,
+    collection_schema: *mut CollectionSchema,
+) -> i32 {
     isar_try! {
-        let collection = Box::from_raw(collection);
-        schema.unwrap().add_collection(*collection)?;
+        let collection_schema = Box::from_raw(collection_schema);
+        schema.add_collection(*collection_schema)?;
     }
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn isar_schema_add_property(
-    collection: Option<&mut CollectionSchema>,
+    collection_schema: &mut CollectionSchema,
     name: *const c_char,
     data_type: u8,
-) -> u8 {
+) -> i32 {
     let data_type = DataType::from_ordinal(data_type).unwrap(); // TODO throw error
     isar_try! {
         let name_str = from_c_str(name)?;
-        collection.unwrap().add_property(&name_str, data_type)?;
+        collection_schema.add_property(&name_str, data_type)?;
     }
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn isar_schema_add_index(
-    collection: Option<&mut CollectionSchema>,
+    collection_schema: &mut CollectionSchema,
     property_names: *const *const c_char,
     property_names_length: u32,
     unique: bool,
     hash_value: bool,
-) -> u8 {
+) -> i32 {
     let property_names_slice =
         slice::from_raw_parts(property_names, property_names_length as usize);
     let property_names: Vec<&str> = property_names_slice
@@ -65,6 +65,6 @@ pub unsafe extern "C" fn isar_schema_add_index(
         .map(|bs| std::str::from_utf8(bs).unwrap())
         .collect();
     isar_try! {
-        collection.unwrap().add_index(&property_names, unique,hash_value)?;
+        collection_schema.add_index(&property_names, unique,hash_value)?;
     }
 }
