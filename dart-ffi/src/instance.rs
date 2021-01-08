@@ -66,7 +66,7 @@ pub unsafe extern "C" fn isar_get_collection<'a>(
         if let Some(new_collection) = new_collection {
             collection.write(new_collection);
         } else {
-            illegal_arg("Provided index is invalid.")?;
+            illegal_arg("Collection index is invalid.")?;
         }
     }
 }

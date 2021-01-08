@@ -1,6 +1,6 @@
 #![allow(clippy::missing_safety_doc)]
 
-use isar_core::error::{IsarError, Result};
+use isar_core::error::{illegal_arg, Result};
 use std::ffi::CStr;
 use std::os::raw::c_char;
 
@@ -21,9 +21,6 @@ pub mod where_clause;
 pub unsafe fn from_c_str<'a>(str: *const c_char) -> Result<&'a str> {
     match CStr::from_ptr(str).to_str() {
         Ok(str) => Ok(str),
-        Err(e) => Err(IsarError::IllegalArgument {
-            source: Some(Box::new(e)),
-            message: "The provided String is not valid.".to_string(),
-        }),
+        Err(e) => illegal_arg("The provided String is not valid."),
     }
 }

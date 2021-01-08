@@ -1,4 +1,4 @@
-use crate::error::{illegal_arg, Result};
+use crate::error::{IsarError, Result};
 use crate::index::{Index, IndexType};
 use crate::lmdb::db::Db;
 use crate::lmdb::txn::Txn;
@@ -42,7 +42,7 @@ impl IsarCollection {
 
     pub fn verify_object_id(&self, oid: ObjectId) -> Result<()> {
         if oid.get_prefix() != self.id {
-            illegal_arg("Invalid ObjectId for this collection.")
+            Err(IsarError::InvalidObjectId {})
         } else {
             Ok(())
         }
@@ -51,7 +51,7 @@ impl IsarCollection {
     pub fn get<'txn>(&self, txn: &'txn IsarTxn, oid: ObjectId) -> Result<Option<&'txn [u8]>> {
         self.verify_object_id(oid)?;
         let oid_bytes = oid.as_bytes();
-        self.db.get(txn.get_txn()?, &oid_bytes)
+        self.db.get(txn.get_txn(), &oid_bytes)
     }
 
     pub fn put(&self, txn: &mut IsarTxn, oid: Option<ObjectId>, object: &[u8]) -> Result<ObjectId> {
@@ -65,7 +65,7 @@ impl IsarCollection {
             };
 
             if !self.object_info.verify_object(object) {
-                illegal_arg("Provided object is invalid.")?;
+                return Err(IsarError::InvalidObject {});
             }
 
             let oid_bytes = oid.as_bytes();

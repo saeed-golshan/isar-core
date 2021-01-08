@@ -9,26 +9,29 @@ pub enum IsarError {
     #[error("VersionError: {message:?}")]
     VersionError { message: String },
 
+    #[error("No such file or directory. Please make sure that the provided path is valid.")]
+    PathError {},
+
     #[error("The database is full.")]
-    DbFull { source: LmdbError },
+    DbFull {},
 
-    #[error("UniqueViolated: {message:?}")]
-    UniqueViolated {
-        source: Option<LmdbError>,
-        message: String,
-    },
+    #[error("Unique index violated.")]
+    UniqueViolated {},
 
-    #[error("IllegalState: {message:?}")]
-    IllegalState {
-        source: Option<Box<dyn Error>>,
-        message: String,
-    },
+    #[error("Write transaction required.")]
+    WriteTxnRequired {},
 
-    #[error("IllegalArgument: {message:?}")]
-    IllegalArgument {
-        source: Option<Box<dyn Error>>,
-        message: String,
-    },
+    #[error("The ObjectId is not valid for this collection.")]
+    InvalidObjectId {},
+
+    #[error("The provided object is invalid.")]
+    InvalidObject {},
+
+    #[error("Transaction closed.")]
+    TransactionClosed {},
+
+    #[error("IllegalArg: {message:?}.")]
+    IllegalArg { message: String },
 
     #[error("DbCorrupted: {message:?}")]
     DbCorrupted {
@@ -36,8 +39,8 @@ pub enum IsarError {
         message: String,
     },
 
-    #[error("LmdbError: {source:?}")]
-    LmdbError { source: LmdbError },
+    #[error("LmdbError: {code:?}")]
+    LmdbError { code: i32 },
 
     #[error("Error: {source:?} {message:?}")]
     Error {
@@ -46,38 +49,21 @@ pub enum IsarError {
     },
 }
 
+impl IsarError {}
+
 impl From<LmdbError> for IsarError {
     fn from(e: LmdbError) -> Self {
         match e {
-            LmdbError::MapFull {} => IsarError::DbFull { source: e },
-            LmdbError::Other { code: 2 } => IsarError::IllegalArgument {
-                source: Some(Box::new(e)),
-                message:
-                    "No such file or directory. Please make sure that the provided path is valid."
-                        .to_string(),
+            LmdbError::MapFull {} => IsarError::DbFull {},
+            _ => IsarError::LmdbError {
+                code: e.to_err_code(),
             },
-            _ => IsarError::LmdbError { source: e },
         }
     }
 }
 
-pub fn illegal_state<T>(msg: &str) -> Result<T> {
-    Err(IsarError::IllegalState {
-        source: None,
-        message: msg.to_string(),
-    })
-}
-
 pub fn illegal_arg<T>(msg: &str) -> Result<T> {
-    Err(IsarError::IllegalArgument {
-        source: None,
-        message: msg.to_string(),
-    })
-}
-
-pub fn corrupted<T>(msg: &str) -> Result<T> {
-    Err(IsarError::DbCorrupted {
-        source: None,
+    Err(IsarError::IllegalArg {
         message: msg.to_string(),
     })
 }

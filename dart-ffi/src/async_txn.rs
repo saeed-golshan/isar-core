@@ -1,5 +1,5 @@
 use crate::dart::{dart_post_int, DartPort};
-use isar_core::error::{illegal_state, Result};
+use isar_core::error::{IsarError, Result};
 use isar_core::instance::IsarInstance;
 use isar_core::txn::IsarTxn;
 use once_cell::sync::Lazy;
@@ -78,7 +78,7 @@ impl IsarAsyncTxn {
             if let Some(ref mut txn) = *lock {
                 job(&mut txn.0)
             } else {
-                illegal_state("Transaction not available.")
+                Err(IsarError::TransactionClosed {})
             }
         };
         self.exec_internal(job, false);
@@ -90,12 +90,9 @@ impl IsarAsyncTxn {
         let job = move || -> Result<()> {
             let mut lock = txn.lock().unwrap();
             if let Some(txn) = (*lock).take() {
-                txn.0.commit()?;
-                dart_post_int(port, 0);
-                Ok(())
+                txn.0.commit()
             } else {
-                dart_post_int(port, 1);
-                illegal_state("Transaction not available.")
+                Err(IsarError::TransactionClosed {})
             }
         };
         self.exec_internal(job, true);
@@ -107,12 +104,10 @@ impl IsarAsyncTxn {
         let job = move || -> Result<()> {
             let mut txn = txn.lock().unwrap();
             if let Some(txn) = txn.take() {
-                txn.0.abort()?;
-                dart_post_int(port, 0);
+                txn.0.abort();
                 Ok(())
             } else {
-                dart_post_int(port, 1);
-                illegal_state("Transaction not available.")
+                Err(IsarError::TransactionClosed {})
             }
         };
         self.exec_internal(job, true);

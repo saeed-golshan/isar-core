@@ -61,10 +61,7 @@ impl Index {
             if success {
                 Ok(())
             } else {
-                Err(IsarError::UniqueViolated {
-                    source: None,
-                    message: "This value already exists in the database.".to_string(),
-                })
+                Err(IsarError::UniqueViolated {})
             }
         }
     }
@@ -264,10 +261,7 @@ mod tests {
 
         let result = col.put(&mut txn, None, bytes.as_bytes());
         match result {
-            Err(IsarError::UniqueViolated {
-                source: _,
-                message: _,
-            }) => {}
+            Err(IsarError::UniqueViolated {}) => {}
             _ => panic!("wrong error"),
         };
     }

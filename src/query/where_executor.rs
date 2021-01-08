@@ -1,4 +1,4 @@
-use crate::error::{illegal_state, Result};
+use crate::error::{IsarError, Result};
 use crate::index::IndexType;
 use crate::lmdb::cursor::Cursor;
 use crate::object::object_id::ObjectId;
@@ -118,7 +118,10 @@ impl<'a, 'txn> WhereExecutor<'a, 'txn> {
                         return Ok(false);
                     }
                 } else {
-                    illegal_state("Unknown object id in index.")?;
+                    return Err(IsarError::DbCorrupted {
+                        source: None,
+                        message: "Could not find object specified in index.".to_string(),
+                    });
                 }
             }
         }
