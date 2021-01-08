@@ -21,6 +21,6 @@ pub mod where_clause;
 pub unsafe fn from_c_str<'a>(str: *const c_char) -> Result<&'a str> {
     match CStr::from_ptr(str).to_str() {
         Ok(str) => Ok(str),
-        Err(e) => illegal_arg("The provided String is not valid."),
+        Err(_) => illegal_arg("The provided String is not valid."),
     }
 }
