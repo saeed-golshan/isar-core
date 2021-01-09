@@ -33,8 +33,10 @@ impl ObjectInfo {
         self.properties.get(index).copied()
     }
 
-    pub fn get_properties(&self) -> &[Property] {
-        &self.properties
+    pub fn iter_properties(&self) -> impl Iterator<Item = (&String, Property)> {
+        self.property_names
+            .iter()
+            .zip(self.properties.iter().copied())
     }
 
     pub fn get_property_by_name(&self, property_name: &str) -> Option<Property> {
@@ -45,28 +47,35 @@ impl ObjectInfo {
             .copied()
     }
 
-    pub fn entry_to_json(&self, key: &[u8], object: &[u8]) -> Value {
+    pub fn entry_to_json(&self, key: &[u8], object: &[u8], primitive_null: bool) -> Value {
         let oid = ObjectId::from_bytes(key);
         let mut oid_str = oid.get_time().to_string();
-        oid_str.push_str(&oid.get_rand_counter().to_string());
+        oid_str.push_str(&oid.get_counter().to_string());
+        oid_str.push_str(&oid.get_rand().to_string());
+
         let mut object_map = Map::new();
         object_map.insert("id".to_string(), json!(oid_str));
         let properties = self.property_names.iter().zip(self.properties.iter());
         for (name, property) in properties {
-            let value = match property.data_type {
-                DataType::Byte => json!(property.get_byte(object)),
-                DataType::Int => json!(property.get_int(object)),
-                DataType::Float => json!(property.get_float(object)),
-                DataType::Long => json!(property.get_long(object)),
-                DataType::Double => json!(property.get_double(object)),
-                DataType::String => json!(property.get_string(object)),
-                DataType::ByteList => json!(property.get_byte_list(object)),
-                DataType::IntList => json!(property.get_int_list(object)),
-                DataType::FloatList => json!(property.get_float_list(object)),
-                DataType::LongList => json!(property.get_float_list(object)),
-                DataType::DoubleList => json!(property.get_double_list(object)),
-                DataType::StringList => json!(property.get_string_list(object)),
-            };
+            let value =
+                if primitive_null && property.data_type.is_static() && property.is_null(object) {
+                    Value::Null
+                } else {
+                    match property.data_type {
+                        DataType::Byte => json!(property.get_byte(object)),
+                        DataType::Int => json!(property.get_int(object)),
+                        DataType::Float => json!(property.get_float(object)),
+                        DataType::Long => json!(property.get_long(object)),
+                        DataType::Double => json!(property.get_double(object)),
+                        DataType::String => json!(property.get_string(object)),
+                        DataType::ByteList => json!(property.get_byte_list(object)),
+                        DataType::IntList => json!(property.get_int_list(object)),
+                        DataType::FloatList => json!(property.get_float_list(object)),
+                        DataType::LongList => json!(property.get_float_list(object)),
+                        DataType::DoubleList => json!(property.get_double_list(object)),
+                        DataType::StringList => json!(property.get_string_list(object)),
+                    }
+                };
             object_map.insert(name.to_string(), value);
         }
         json!(object_map)

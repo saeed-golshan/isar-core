@@ -113,11 +113,12 @@ pub unsafe extern "C" fn isar_delete_all_async(
 pub unsafe extern "C" fn isar_export_json(
     collection: &IsarCollection,
     txn: &IsarTxn,
+    primitive_null: bool,
     json: *mut *mut c_char,
     json_length: *mut u32,
 ) -> i32 {
     isar_try! {
-        let exported_json = collection.export_json(txn)?.to_string();
+        let exported_json = collection.export_json(txn,primitive_null)?.to_string();
         json_length.write(exported_json.len() as u32);
         let json_str = CString::new(exported_json).unwrap();
         json.write(json_str.into_raw());
@@ -134,13 +135,14 @@ unsafe impl Send for JsonLen {}
 pub unsafe extern "C" fn isar_export_json_async(
     collection: &'static IsarCollection,
     txn: &IsarAsyncTxn,
+    primitive_null: bool,
     json_bytes: *mut *mut u8,
     json_length: *mut u32,
 ) {
     let json = JsonBytes(json_bytes);
     let json_length = JsonLen(json_length);
     txn.exec(move |txn| -> Result<()> {
-        let exported_json = collection.export_json(txn)?;
+        let exported_json = collection.export_json(txn, primitive_null)?;
         let bytes = serde_json::to_vec(&exported_json).unwrap();
         let mut bytes = bytes.into_boxed_slice();
         json_length.0.write(bytes.len() as u32);
