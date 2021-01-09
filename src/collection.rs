@@ -43,8 +43,16 @@ impl IsarCollection {
         }
     }
 
+    pub(crate) fn get_id(&self) -> u16 {
+        self.id
+    }
+
     pub fn get_name(&self) -> &str {
         &self.name
+    }
+
+    pub fn get_object_info(&self) -> &ObjectInfo {
+        &self.object_info
     }
 
     pub fn get_object_builder(&self) -> ObjectBuilder {
@@ -53,6 +61,10 @@ impl IsarCollection {
 
     pub fn get_object_id(&self, time: u32, rand_counter: u64) -> ObjectId {
         ObjectId::new(self.id, time, rand_counter)
+    }
+
+    pub(crate) fn get_indexes(&self) -> &[Index] {
+        &self.indexes
     }
 
     pub fn verify_object_id(&self, oid: ObjectId) -> Result<()> {
@@ -104,15 +116,17 @@ impl IsarCollection {
         })
     }
 
+    pub(crate) fn delete_all_internal(&self, lmdb_txn: &Txn) -> Result<()> {
+        for index in &self.indexes {
+            index.clear(&lmdb_txn)?;
+        }
+        self.db
+            .delete_key_prefix(&lmdb_txn, &self.id.to_le_bytes())?;
+        Ok(())
+    }
+
     pub fn delete_all(&self, txn: &IsarTxn) -> Result<()> {
-        txn.exec_atomic_write(|lmdb_txn| {
-            for index in &self.indexes {
-                index.clear(&lmdb_txn)?;
-            }
-            self.db
-                .delete_key_prefix(&lmdb_txn, &self.id.to_le_bytes())?;
-            Ok(())
-        })
+        txn.exec_atomic_write(|lmdb_txn| self.delete_all_internal(lmdb_txn))
     }
 
     pub fn create_primary_where_clause(&self) -> WhereClause {
@@ -175,16 +189,6 @@ impl IsarCollection {
     #[cfg(test)]
     pub fn debug_get_db(&self) -> Db {
         self.db
-    }
-
-    #[cfg(test)]
-    pub fn debug_get_id(&self) -> u16 {
-        self.id
-    }
-
-    #[cfg(test)]
-    pub(crate) fn debug_get_object_info(&self) -> ObjectInfo {
-        self.object_info.clone()
     }
 }
 

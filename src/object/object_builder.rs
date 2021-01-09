@@ -1,8 +1,8 @@
 use crate::object::data_type::DataType;
 use crate::object::object_id::ObjectId;
 use crate::object::object_info::ObjectInfo;
+use crate::object::property::Property;
 use crate::utils::aligned_vec;
-use core::mem;
 use std::slice::from_raw_parts;
 
 pub struct ObjectBuilder<'a> {
@@ -36,6 +36,25 @@ impl<'a> ObjectBuilder<'a> {
         }
         self.object[offset..(offset + bytes.len())].clone_from_slice(&bytes[..]);
     }
+
+    pub fn write_null(&mut self) {
+        let property = self.object_info.get_property(self.property_index).unwrap();
+        match property.data_type {
+            DataType::Byte => self.write_byte(Property::NULL_BYTE),
+            DataType::Int => self.write_int(Property::NULL_INT),
+            DataType::Float => self.write_float(Property::NULL_FLOAT),
+            DataType::Long => self.write_long(Property::NULL_LONG),
+            DataType::Double => self.write_double(Property::NULL_DOUBLE),
+            DataType::String => self.write_string(None),
+            DataType::ByteList => self.write_byte_list(None),
+            DataType::IntList => self.write_int_list(None),
+            DataType::FloatList => self.write_float_list(None),
+            DataType::LongList => self.write_long_list(None),
+            DataType::DoubleList => self.write_double_list(None),
+            DataType::StringList => self.write_string_list(None),
+        }
+    }
+
     pub fn write_byte(&mut self, value: u8) {
         let (offset, data_type) = self.get_next_property();
         assert_eq!(data_type, DataType::Byte);
@@ -102,7 +121,7 @@ impl<'a> ObjectBuilder<'a> {
         self.write_list(offset, value);
     }
 
-    pub fn write_string_list(&mut self) {
+    pub fn write_string_list(&mut self, value: Option<&[Option<&str>]>) {
         let (offset, data_type) = self.get_next_property();
         assert_eq!(data_type, DataType::StringList);
         self.write_list::<u8>(offset, None);
@@ -124,7 +143,7 @@ impl<'a> ObjectBuilder<'a> {
         if let Some(list) = list {
             self.write_at(offset, &(self.dynamic_offset as u32).to_le_bytes());
             self.write_at(offset + 4, &(list.len() as u32).to_le_bytes());
-            let type_size = mem::size_of::<T>();
+            let type_size = std::mem::size_of::<T>();
             let ptr = list.as_ptr() as *const T;
             let bytes = unsafe { from_raw_parts::<u8>(ptr as *const u8, list.len() * type_size) };
             self.write_at(self.dynamic_offset, bytes);
@@ -154,7 +173,7 @@ mod tests {
         ($var:ident, $oi:ident, $type:ident) => {
             isar!(isar, col => col!("int" => $type));
             let mut $var = col.get_object_builder();
-            let $oi = col.debug_get_object_info();
+            let $oi = col.get_object_info();
         };
     }
 

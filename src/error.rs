@@ -6,8 +6,8 @@ pub type Result<T> = std::result::Result<T, IsarError>;
 
 #[derive(Debug, Error)]
 pub enum IsarError {
-    #[error("VersionError: {message:?}")]
-    VersionError { message: String },
+    #[error("Isar version of the file is too new or too old to be used.")]
+    VersionError {},
 
     #[error("No such file or directory. Please make sure that the provided path is valid.")]
     PathError {},
@@ -35,6 +35,12 @@ pub enum IsarError {
 
     #[error("DbCorrupted: {message:?}")]
     DbCorrupted {
+        source: Option<Box<dyn Error>>,
+        message: String,
+    },
+
+    #[error("MigrationError: {message:?}")]
+    MigrationError {
         source: Option<Box<dyn Error>>,
         message: String,
     },

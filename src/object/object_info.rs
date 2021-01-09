@@ -4,14 +4,14 @@ use crate::object::property::Property;
 use serde_json::{json, Map, Value};
 
 #[cfg_attr(test, derive(Clone))]
-pub(crate) struct ObjectInfo {
+pub struct ObjectInfo {
     properties: Vec<Property>,
     property_names: Vec<String>,
     static_size: usize,
 }
 
 impl ObjectInfo {
-    pub fn new(properties: Vec<Property>, property_names: Vec<String>) -> ObjectInfo {
+    pub(crate) fn new(properties: Vec<Property>, property_names: Vec<String>) -> ObjectInfo {
         let static_size = Self::calculate_static_size(&properties);
         ObjectInfo {
             properties,
@@ -31,6 +31,10 @@ impl ObjectInfo {
 
     pub fn get_property(&self, index: usize) -> Option<Property> {
         self.properties.get(index).copied()
+    }
+
+    pub fn get_properties(&self) -> &[Property] {
+        &self.properties
     }
 
     pub fn get_property_by_name(&self, property_name: &str) -> Option<Property> {
@@ -112,14 +116,14 @@ impl ObjectInfo {
                     return false;
                 }
 
-                if property.data_type != DataType::StringList {
-                    dynamic_offset += pos.length as usize * property.data_type.get_element_size();
-                } else {
+                if property.data_type == DataType::StringList {
                     let list_positions = property.get_dynamic_positions(object).unwrap();
                     let last_with_length = list_positions.iter().rev().find(|p| p.length != 0);
                     if let Some(last_pos) = last_with_length {
                         dynamic_offset += last_pos.length as usize;
                     }
+                } else {
+                    dynamic_offset += pos.length as usize * property.data_type.get_element_size();
                 }
             }
         }

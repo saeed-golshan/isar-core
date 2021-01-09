@@ -124,8 +124,8 @@ pub unsafe extern "C" fn isar_export_json(
     }
 }
 
-struct JsonStr(*mut *mut c_char);
-unsafe impl Send for JsonStr {}
+struct JsonBytes(*mut *mut u8);
+unsafe impl Send for JsonBytes {}
 
 struct JsonLen(*mut u32);
 unsafe impl Send for JsonLen {}
@@ -134,21 +134,23 @@ unsafe impl Send for JsonLen {}
 pub unsafe extern "C" fn isar_export_json_async(
     collection: &'static IsarCollection,
     txn: &IsarAsyncTxn,
-    json: *mut *mut c_char,
+    json_bytes: *mut *mut u8,
     json_length: *mut u32,
 ) {
-    let json = JsonStr(json);
+    let json = JsonBytes(json_bytes);
     let json_length = JsonLen(json_length);
     txn.exec(move |txn| -> Result<()> {
-        let exported_json = collection.export_json(txn)?.to_string();
-        json_length.0.write(exported_json.len() as u32);
-        let json_str = CString::new(exported_json).unwrap();
-        json.0.write(json_str.into_raw());
+        let exported_json = collection.export_json(txn)?;
+        let bytes = serde_json::to_vec(&exported_json).unwrap();
+        let mut bytes = bytes.into_boxed_slice();
+        json_length.0.write(bytes.len() as u32);
+        json.0.write(bytes.as_mut_ptr());
+        std::mem::forget(bytes);
         Ok(())
     });
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn isar_free_json(json: *mut c_char) {
-    CString::from_raw(json);
+pub unsafe extern "C" fn isar_free_json(json_bytes: *mut u8, json_length: u32) {
+    Vec::from_raw_parts(json_bytes, json_length as usize, json_length as usize);
 }

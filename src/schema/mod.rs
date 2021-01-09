@@ -1,6 +1,8 @@
+mod collection_migrator;
 pub mod collection_schema;
 pub mod index_schema;
 pub mod property_schema;
+pub(super) mod schema_manager;
 
 use crate::collection::IsarCollection;
 use crate::data_dbs::DataDbs;
@@ -10,7 +12,7 @@ use hashbrown::HashSet;
 use rand::random;
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Schema {
     collections: Vec<CollectionSchema>,
 }
@@ -30,12 +32,7 @@ impl Schema {
         Ok(())
     }
 
-    pub(crate) fn build_collections(
-        mut self,
-        dbs: DataDbs,
-        existing_schema: Option<&Schema>,
-    ) -> Vec<IsarCollection> {
-        self.update_ids(existing_schema);
+    pub(crate) fn build_collections(self, dbs: DataDbs) -> Vec<IsarCollection> {
         self.collections
             .iter()
             .map(|c| c.get_isar_collection(dbs))
@@ -63,7 +60,7 @@ impl Schema {
         ids
     }
 
-    fn update_ids(&mut self, existing_schema: Option<&Schema>) {
+    pub fn update_with_existing_schema(&mut self, existing_schema: Option<&Schema>) {
         let mut ids = if let Some(existing_schema) = existing_schema {
             existing_schema.collect_ids()
         } else {

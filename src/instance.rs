@@ -4,10 +4,9 @@ use crate::error::*;
 use crate::lmdb::db::Db;
 use crate::lmdb::env::Env;
 use crate::query::query_builder::QueryBuilder;
+use crate::schema::schema_manager::SchemaManger;
 use crate::schema::Schema;
 use crate::txn::IsarTxn;
-
-pub const ISAR_VERSION: u32 = 1;
 
 pub struct IsarInstance {
     env: Env,
@@ -15,19 +14,14 @@ pub struct IsarInstance {
     collections: Vec<IsarCollection>,
 }
 
-unsafe impl Sync for IsarInstance {}
-unsafe impl Send for IsarInstance {}
-
 impl IsarInstance {
     pub fn create(path: &str, max_size: usize, schema: Schema) -> Result<Self> {
         let env = Env::create(path, 4, max_size)?;
         let dbs = IsarInstance::open_databases(&env)?;
 
-        let collections = schema.build_collections(dbs, None);
-
-        /*let txn = env.txn(true)?;
-        Self::migrate_isar_database(&txn, dbs)?;
-        txn.commit()?;*/
+        let manager = SchemaManger::new(&env, dbs);
+        manager.check_isar_version()?;
+        let collections = manager.get_collections(schema)?;
 
         Ok(IsarInstance {
             env,
@@ -50,23 +44,6 @@ impl IsarInstance {
             secondary_dup,
         })
     }
-
-    /*fn migrate_isar_database(txn: &Txn, dbs: DataDbs) -> Result<()> {
-        return Ok(());
-        let version = dbs.info.get(&txn, b"version")?;
-        if let Some(version) = version {
-            let version_number = u32::from_le_bytes(version.try_into().unwrap());
-            if version_number != ISAR_VERSION {
-                return Err(VersionError {
-                    message: "Database has an illegal version number.".to_string(),
-                });
-            }
-        } else {
-            dbs.info
-                .put(&txn, b"version", &u32::to_le_bytes(ISAR_VERSION))?;
-        }
-        Ok(())
-    }*/
 
     #[inline]
     pub fn begin_txn(&self, write: bool) -> Result<IsarTxn> {
@@ -91,6 +68,8 @@ impl IsarInstance {
             self.dbs.secondary_dup,
         )
     }
+
+    pub fn close(self) {}
 
     #[cfg(test)]
     pub fn debug_get_primary_db(&self) -> Db {

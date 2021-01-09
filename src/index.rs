@@ -52,6 +52,10 @@ impl Index {
         }
     }
 
+    pub(crate) fn get_id(&self) -> u16 {
+        u16::from_le_bytes(self.prefix)
+    }
+
     pub(crate) fn create_for_object(&self, txn: &Txn, key: &[u8], object: &[u8]) -> Result<()> {
         let index_key = self.create_key(object);
         if self.index_type == IndexType::SecondaryDup {

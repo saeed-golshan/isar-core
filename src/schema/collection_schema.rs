@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use std::cmp;
 use std::cmp::Ordering;
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct CollectionSchema {
     pub(super) id: Option<u16>,
     pub(super) name: String,
@@ -190,13 +190,11 @@ impl CollectionSchema {
             .collect()
     }
 
-    pub(super) fn update_with_existing_collections<F>(
+    pub(super) fn update_with_existing_collections(
         &mut self,
         existing_collections: &[CollectionSchema],
-        get_id: &mut F,
-    ) where
-        F: FnMut() -> u16,
-    {
+        get_id: &mut impl FnMut() -> u16,
+    ) {
         let existing_collection = existing_collections.iter().find(|c| c.name == self.name);
         let existing_indexes: &[IndexSchema] = existing_collection.map_or(&[], |e| &e.indexes);
         for index in &mut self.indexes {

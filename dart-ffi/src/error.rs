@@ -17,6 +17,7 @@ impl ErrCode for IsarError {
             IsarError::TransactionClosed { .. } => 107,
             IsarError::IllegalArg { .. } => 108,
             IsarError::DbCorrupted { .. } => 109,
+            IsarError::MigrationError { .. } => 110,
             IsarError::LmdbError { code } => *code,
         }
     }

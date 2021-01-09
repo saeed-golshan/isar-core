@@ -1,7 +1,7 @@
 use crate::schema::property_schema::PropertySchema;
 use serde::{Deserialize, Serialize};
 
-#[derive(PartialEq, Serialize, Deserialize, Clone)]
+#[derive(PartialEq, Serialize, Deserialize, Clone, Debug)]
 pub struct IndexSchema {
     pub(super) id: Option<u16>,
     #[serde(rename = "properties")]
