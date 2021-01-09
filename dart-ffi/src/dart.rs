@@ -4,22 +4,22 @@ static DART_POST_C_OBJECT: OnceCell<DartPostCObjectFnType> = OnceCell::new();
 
 pub fn dart_post_int(port: DartPort, value: i32) {
     let dart_post = DART_POST_C_OBJECT.get().unwrap();
-    dart_post(port, &mut DartCObject::from_int_i32(value));
+    dart_post(port, &mut Dart_CObject::from_int_i32(value));
 }
 
 pub type DartPort = i64;
 
-pub type DartPostCObjectFnType = extern "C" fn(port_id: DartPort, message: *mut DartCObject) -> i8;
+pub type DartPostCObjectFnType = extern "C" fn(port_id: DartPort, message: *mut Dart_CObject) -> i8;
 
 #[repr(C)]
-pub struct DartCObject {
+pub struct Dart_CObject {
     ty: i32,
     value: DartCObjectValue,
 }
 
-impl DartCObject {
+impl Dart_CObject {
     fn from_int_i32(value: i32) -> Self {
-        DartCObject {
+        Dart_CObject {
             ty: 2,
             value: DartCObjectValue { as_int32: value },
         }
