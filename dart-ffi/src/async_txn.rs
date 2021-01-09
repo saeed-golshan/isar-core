@@ -1,5 +1,5 @@
 use crate::dart::{dart_post_int, DartPort};
-use crate::error::ErrCode;
+use crate::error::DartErrCode;
 use isar_core::error::{IsarError, Result};
 use isar_core::instance::IsarInstance;
 use isar_core::txn::IsarTxn;
@@ -52,7 +52,7 @@ impl IsarAsyncTxn {
                     }
                 }
                 Err(e) => {
-                    dart_post_int(port, e.err_code());
+                    dart_post_int(port, e.into_dart_err_code());
                 }
             }
         });
@@ -65,7 +65,7 @@ impl IsarAsyncTxn {
         let handle_response_job = move || {
             let result = match job() {
                 Ok(()) => 0,
-                Err(e) => e.err_code(),
+                Err(e) => e.into_dart_err_code(),
             };
             dart_post_int(port, result);
         };

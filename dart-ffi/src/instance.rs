@@ -1,7 +1,7 @@
 use crate::async_txn::run_async;
 use crate::dart::dart_post_int;
 use crate::dart::DartPort;
-use crate::error::ErrCode;
+use crate::error::DartErrCode;
 use crate::from_c_str;
 use isar_core::collection::IsarCollection;
 use isar_core::error::illegal_arg;
@@ -50,7 +50,7 @@ pub unsafe extern "C" fn isar_create_instance(
                 dart_post_int(port, 0);
             }
             Err(e) => {
-                dart_post_int(port, e.err_code());
+                dart_post_int(port, e.into_dart_err_code());
             }
         }
     });
