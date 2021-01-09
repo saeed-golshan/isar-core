@@ -3,12 +3,12 @@ use serde::{Deserialize, Serialize};
 
 #[derive(PartialEq, Serialize, Deserialize, Clone, Debug)]
 pub struct IndexSchema {
-    pub(super) id: Option<u16>,
+    pub(crate) id: Option<u16>,
     #[serde(rename = "properties")]
-    pub(super) properties: Vec<PropertySchema>,
-    pub(super) unique: bool,
+    pub(crate) properties: Vec<PropertySchema>,
+    pub(crate) unique: bool,
     #[serde(rename = "hashValue")]
-    pub(super) hash_value: bool,
+    pub(crate) hash_value: bool,
 }
 
 impl IndexSchema {

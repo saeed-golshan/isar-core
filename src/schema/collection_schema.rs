@@ -15,10 +15,10 @@ use std::cmp::Ordering;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct CollectionSchema {
-    pub(super) id: Option<u16>,
-    pub(super) name: String,
-    pub(super) properties: Vec<PropertySchema>,
-    pub(super) indexes: Vec<IndexSchema>,
+    pub(crate) id: Option<u16>,
+    pub(crate) name: String,
+    pub(crate) properties: Vec<PropertySchema>,
+    pub(crate) indexes: Vec<IndexSchema>,
 }
 
 impl CollectionSchema {
@@ -196,12 +196,14 @@ impl CollectionSchema {
         get_id: &mut impl FnMut() -> u16,
     ) {
         let existing_collection = existing_collections.iter().find(|c| c.name == self.name);
+
+        let id = existing_collection.map_or_else(|| get_id(), |e| e.id.unwrap());
+        self.id = Some(id);
+
         let existing_indexes: &[IndexSchema] = existing_collection.map_or(&[], |e| &e.indexes);
         for index in &mut self.indexes {
             index.update_with_existing_indexes(existing_indexes, get_id);
         }
-        let id = existing_collection.map_or_else(get_id, |e| e.id.unwrap());
-        self.id = Some(id);
     }
 }
 
@@ -361,9 +363,9 @@ mod tests {
         };
         col.update_with_existing_collections(&[], &mut get_id);
 
-        assert_eq!(col.indexes[0].id, Some(1));
-        assert_eq!(col.indexes[1].id, Some(2));
-        assert_eq!(col.id, Some(3));
+        assert_eq!(col.id, Some(1));
+        assert_eq!(col.indexes[0].id, Some(2));
+        assert_eq!(col.indexes[1].id, Some(3));
     }
 
     #[test]
@@ -381,9 +383,9 @@ mod tests {
         col1.add_index(&["int"], true, false).unwrap();
 
         col1.update_with_existing_collections(&[], &mut get_id);
-        assert_eq!(col1.indexes[0].id, Some(1));
-        assert_eq!(col1.indexes[1].id, Some(2));
-        assert_eq!(col1.id, Some(3));
+        assert_eq!(col1.id, Some(1));
+        assert_eq!(col1.indexes[0].id, Some(2));
+        assert_eq!(col1.indexes[1].id, Some(3));
 
         let mut col2 = CollectionSchema::new("col");
         col2.add_property("byte", DataType::Byte).unwrap();
@@ -392,9 +394,9 @@ mod tests {
         col2.add_index(&["int", "byte"], true, false).unwrap();
 
         col2.update_with_existing_collections(&[col1], &mut get_id);
-        assert_eq!(col2.indexes[0].id, Some(1));
+        assert_eq!(col2.id, Some(1));
+        assert_eq!(col2.indexes[0].id, Some(2));
         assert_eq!(col2.indexes[1].id, Some(4));
-        assert_eq!(col2.id, Some(3));
 
         let mut col3 = CollectionSchema::new("col3");
         col3.update_with_existing_collections(&[col2], &mut get_id);

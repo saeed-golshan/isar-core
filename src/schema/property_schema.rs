@@ -3,9 +3,9 @@ use serde::{Deserialize, Serialize};
 
 #[derive(PartialEq, Serialize, Deserialize, Clone, Debug)]
 pub struct PropertySchema {
-    pub(super) name: String,
+    pub(crate) name: String,
     #[serde(rename = "type")]
-    pub(super) data_type: DataType,
+    pub(crate) data_type: DataType,
 }
 
 impl PropertySchema {
