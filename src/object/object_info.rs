@@ -48,13 +48,11 @@ impl ObjectInfo {
     }
 
     pub fn entry_to_json(&self, key: &[u8], object: &[u8], primitive_null: bool) -> Value {
-        let oid = ObjectId::from_bytes(key);
-        let mut oid_str = oid.get_time().to_string();
-        oid_str.push_str(&oid.get_counter().to_string());
-        oid_str.push_str(&oid.get_rand().to_string());
-
         let mut object_map = Map::new();
-        object_map.insert("id".to_string(), json!(oid_str));
+
+        let oid = ObjectId::from_bytes(key);
+        object_map.insert("id".to_string(), json!(oid.to_string()));
+
         let properties = self.property_names.iter().zip(self.properties.iter());
         for (name, property) in properties {
             let value =

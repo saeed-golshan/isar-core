@@ -61,6 +61,12 @@ impl ObjectId {
     }
 }
 
+impl ToString for ObjectId {
+    fn to_string(&self) -> String {
+        hex::encode(self.as_bytes_without_prefix())
+    }
+}
+
 #[cfg(test)]
 mod tests {
 
