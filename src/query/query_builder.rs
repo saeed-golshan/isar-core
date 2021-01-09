@@ -83,7 +83,7 @@ impl QueryBuilder {
     }
 
     pub fn set_distinct(&mut self, properties: &[Property]) {
-        self.distinct = Some(properties.iter().copied().collect_vec());
+        self.distinct = Some(properties.iter().cloned().collect_vec());
     }
 
     /*pub fn merge_where_clauses(mut where_clauses: Vec<WhereClause>) -> Vec<WhereClause> {

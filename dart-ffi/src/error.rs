@@ -5,7 +5,7 @@ use std::os::raw::c_char;
 use std::sync::Mutex;
 
 type ErrCounter = (Vec<(i32, String)>, i32);
-static ERRORS: Lazy<Mutex<ErrCounter>> = Lazy::new(|| Mutex::new((vec![], 0)));
+static ERRORS: Lazy<Mutex<ErrCounter>> = Lazy::new(|| Mutex::new((vec![], 1)));
 
 pub trait DartErrCode {
     fn into_dart_err_code(self) -> i32;
@@ -21,6 +21,9 @@ impl DartErrCode for IsarError {
         let err_code = *counter;
         errors.push((err_code, self.to_string()));
         *counter = counter.wrapping_add(1);
+        if *counter == 0 {
+            *counter = 1
+        }
         err_code
     }
 }

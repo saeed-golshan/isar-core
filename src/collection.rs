@@ -59,8 +59,8 @@ impl IsarCollection {
         ObjectBuilder::new(&self.object_info)
     }
 
-    pub fn get_object_id(&self, time: u32, rand_counter: u64) -> ObjectId {
-        ObjectId::new(self.id, time, rand_counter)
+    pub fn get_object_id(&self, time: u32, counter: u32, rand: u32) -> ObjectId {
+        ObjectId::new(self.id, time, counter, rand)
     }
 
     pub(crate) fn get_indexes(&self) -> &[Index] {
@@ -160,7 +160,7 @@ impl IsarCollection {
         }
     }
 
-    pub fn export_json(&self, txn: &IsarTxn) -> Result<Value> {
+    pub fn export_json(&self, txn: &IsarTxn, primitive_null: bool) -> Result<Value> {
         let mut cursor = self.db.cursor(txn.get_txn())?;
         let result = cursor.move_to_gte(&self.id.to_le_bytes())?;
         if result.is_none() {
@@ -168,7 +168,7 @@ impl IsarCollection {
         }
         let items: Result<Vec<Value>> = cursor
             .iter()
-            .map_ok(|(key, val)| self.object_info.entry_to_json(key, val))
+            .map_ok(|(key, val)| self.object_info.entry_to_json(key, val, primitive_null))
             .collect();
         Ok(json!(items?))
     }

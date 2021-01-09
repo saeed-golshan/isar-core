@@ -4,8 +4,9 @@ use std::mem;
 #[repr(packed)]
 pub struct ObjectId {
     prefix: u16,
-    time: u32, // big endian
-    rand_counter: u64,
+    time: u32,    // big endian
+    counter: u32, // big endian
+    rand: u32,
 }
 
 impl ObjectId {
@@ -13,11 +14,12 @@ impl ObjectId {
         mem::size_of::<ObjectId>()
     }
 
-    pub fn new(prefix: u16, time: u32, rand_counter: u64) -> Self {
+    pub fn new(prefix: u16, time: u32, counter: u32, rand: u32) -> Self {
         ObjectId {
             prefix,
             time: time.to_be(),
-            rand_counter,
+            counter: counter.to_be(),
+            rand,
         }
     }
 
@@ -26,7 +28,7 @@ impl ObjectId {
         &body[0]
     }
 
-    pub fn get_prefix(&self) -> u16 {
+    pub(crate) fn get_prefix(&self) -> u16 {
         self.prefix
     }
 
@@ -34,8 +36,12 @@ impl ObjectId {
         self.time.to_be()
     }
 
-    pub fn get_rand_counter(&self) -> u64 {
-        self.rand_counter
+    pub fn get_counter(&self) -> u32 {
+        self.counter.to_be()
+    }
+
+    pub fn get_rand(&self) -> u32 {
+        self.rand
     }
 
     #[inline]

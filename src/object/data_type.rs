@@ -35,11 +35,15 @@ pub enum DataType {
 }
 
 impl DataType {
-    pub fn is_dynamic(&self) -> bool {
-        !matches!(
+    pub fn is_static(&self) -> bool {
+        matches!(
             &self,
             DataType::Int | DataType::Long | DataType::Float | DataType::Double | DataType::Byte
         )
+    }
+
+    pub fn is_dynamic(&self) -> bool {
+        !self.is_static()
     }
 
     pub fn get_static_size(&self) -> usize {

@@ -175,7 +175,7 @@ mod tests {
             builder.finish()
         };
 
-        let oid = |time: u32| Some(col.get_object_id(time, 5));
+        let oid = |time: u32| Some(col.get_object_id(time, 0, 0));
 
         let data = vec![
             (oid(1), build_value(1, 1, "aaa")),
