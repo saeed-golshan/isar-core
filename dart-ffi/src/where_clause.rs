@@ -31,9 +31,10 @@ pub unsafe extern "C" fn isar_wc_create(
 pub unsafe extern "C" fn isar_wc_add_oid(
     where_clause: &mut WhereClause,
     time: u32,
-    rand_counter: u64,
+    counter: u32,
+    rand: u32,
 ) {
-    let oid = ObjectId::new(0, time, rand_counter);
+    let oid = ObjectId::new(0, time, counter, rand);
     where_clause.add_oid(oid);
 }
 

@@ -8,7 +8,8 @@ use std::{ptr, slice};
 #[repr(C)]
 pub struct RawObject {
     oid_time: u32,
-    oid_rand_counter: u64,
+    oid_counter: u32,
+    oid_rand: u32,
     data: *const u8,
     data_length: u32,
 }
@@ -22,7 +23,8 @@ impl RawObject {
     pub fn new(oid: ObjectId, object: &[u8]) -> Self {
         RawObject {
             oid_time: oid.get_time(),
-            oid_rand_counter: oid.get_rand_counter(),
+            oid_counter: oid.get_counter(),
+            oid_rand: oid.get_rand(),
             data: object as *const _ as *const u8,
             data_length: object.len() as u32,
         }
@@ -30,7 +32,8 @@ impl RawObject {
 
     pub fn set_object_id(&mut self, oid: ObjectId) {
         self.oid_time = oid.get_time();
-        self.oid_rand_counter = oid.get_rand_counter();
+        self.oid_counter = oid.get_time();
+        self.oid_rand = oid.get_rand();
     }
 
     pub fn set_object(&mut self, object: &[u8]) {
@@ -40,20 +43,13 @@ impl RawObject {
         self.data_length = data_length;
     }
 
-    pub fn set_empty(&mut self) {
-        self.oid_time = 0;
-        self.oid_rand_counter = 0;
-        self.data = ptr::null();
-        self.data_length = 0;
-    }
-
     pub fn object_as_slice(&self) -> &[u8] {
         unsafe { slice::from_raw_parts(self.data, self.data_length as usize) }
     }
 
     pub fn get_object_id(&self, col: &IsarCollection) -> Option<ObjectId> {
         if self.oid_time != 0 {
-            Some(col.get_object_id(self.oid_time, self.oid_rand_counter))
+            Some(col.get_object_id(self.oid_time, self.oid_counter, self.oid_rand))
         } else {
             None
         }
@@ -65,7 +61,8 @@ impl RawObject {
 
     pub fn clear(&mut self) {
         self.oid_time = 0;
-        self.oid_rand_counter = 0;
+        self.oid_counter = 0;
+        self.oid_rand = 0;
         self.data = ptr::null();
         self.data_length = 0;
     }
@@ -112,7 +109,8 @@ pub extern "C" fn isar_alloc_raw_obj(size: u32) -> *mut RawObject {
     std::mem::forget(buffer);
     let raw_obj = RawObject {
         oid_time: 0,
-        oid_rand_counter: 0,
+        oid_counter: 0,
+        oid_rand: 0,
         data: ptr,
         data_length: size,
     };

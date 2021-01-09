@@ -3,8 +3,6 @@ use crate::raw_object_set::{RawObject, RawObjectSend};
 use isar_core::collection::IsarCollection;
 use isar_core::error::Result;
 use isar_core::txn::IsarTxn;
-use std::ffi::CString;
-use std::os::raw::c_char;
 
 #[no_mangle]
 pub unsafe extern "C" fn isar_get(
@@ -18,7 +16,7 @@ pub unsafe extern "C" fn isar_get(
         if let Some(result) = result {
             object.set_object(result);
         } else {
-            object.set_empty();
+            object.clear();
         }
     }
 }
@@ -36,7 +34,7 @@ pub unsafe extern "C" fn isar_get_async(
         if let Some(result) = result {
             object.0.set_object(result);
         } else {
-            object.0.set_empty();
+            object.0.clear();
         }
         Ok(())
     });
