@@ -114,14 +114,16 @@ pub unsafe extern "C" fn isar_export_json(
     collection: &IsarCollection,
     txn: &IsarTxn,
     primitive_null: bool,
-    json: *mut *mut c_char,
+    json: *mut *mut u8,
     json_length: *mut u32,
 ) -> i32 {
     isar_try! {
-        let exported_json = collection.export_json(txn,primitive_null)?.to_string();
-        json_length.write(exported_json.len() as u32);
-        let json_str = CString::new(exported_json).unwrap();
-        json.write(json_str.into_raw());
+        let exported_json = collection.export_json(txn, primitive_null)?;
+        let bytes = serde_json::to_vec(&exported_json).unwrap();
+        let mut bytes = bytes.into_boxed_slice();
+        json_length.write(bytes.len() as u32);
+        json.write(bytes.as_mut_ptr());
+        std::mem::forget(bytes);
     }
 }
 
