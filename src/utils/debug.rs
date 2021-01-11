@@ -34,15 +34,20 @@ macro_rules! set (
 
 #[macro_export]
 macro_rules! isar (
-    ($isar:ident, $($col:ident => $schema:expr),+) => {
+    (path: $path:ident, $isar:ident, $($col:ident => $schema:expr),+) => {
         let mut schema = crate::schema::Schema::new();
         $(
         let col = $schema;
         schema.add_collection(col).unwrap();
         )+
-        let temp = tempfile::tempdir().unwrap();
-        let $isar = crate::instance::IsarInstance::create(temp.path().to_str().unwrap(), 10000000, schema).unwrap();
+        let $isar = crate::instance::IsarInstance::create($path, 10000000, schema).unwrap();
         isar!(x $isar, 0, $($col),+);
+    };
+
+    ($isar:ident, $($col:ident => $schema:expr),+) => {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().to_str().unwrap();
+        isar!(path: path, $isar, $($col => $schema),+);
     };
 
     (x $isar:ident, $index:expr, $col:ident, $($other:ident),+) => {
@@ -57,14 +62,30 @@ macro_rules! isar (
 
 #[macro_export]
 macro_rules! col (
-    ($($name:expr => $type:ident),+) => {
-        col!($($name => $type),+;);
+    ($($field:expr => $type:ident),+) => {
+        col!($($field => $type),+;);
     };
 
-    ($($name:expr => $type:ident),+; $($index:expr),*) => {
+    ($($field:expr => $type:ident),+; $($index:expr),*) => {
         {
-            let mut collection = crate::schema::collection_schema::CollectionSchema::new(stringify!($($name)+));
-            $(collection.add_property(stringify!($name), crate::object::data_type::DataType::$type).unwrap();)+
+            let mut collection = crate::schema::collection_schema::CollectionSchema::new(stringify!($($field)+));
+            $(collection.add_property(stringify!($field), crate::object::data_type::DataType::$type).unwrap();)+
+            $(
+                let (fields, unique, hash) = $index;
+                collection.add_index(fields, unique, hash).unwrap();
+            )*
+            collection
+        }
+    };
+
+    ($name:expr, $($field:expr => $type:ident),+) => {
+        col!($name, $($field => $type),+;);
+    };
+
+    ($name:expr, $($field:expr => $type:ident),+; $($index:expr),*) => {
+        {
+            let mut collection = crate::schema::collection_schema::CollectionSchema::new($name);
+            $(collection.add_property(stringify!($field), crate::object::data_type::DataType::$type).unwrap();)+
             $(
                 let (fields, unique, hash) = $index;
                 collection.add_index(fields, unique, hash).unwrap();

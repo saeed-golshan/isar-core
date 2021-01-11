@@ -5,12 +5,11 @@ use crate::lmdb::db::Db;
 use crate::lmdb::txn::Txn;
 use crate::object::data_type::DataType;
 use crate::object::object_builder::ObjectBuilder;
-use crate::object::object_info::ObjectInfo;
 use crate::object::property::Property;
 
 pub struct CollectionMigrator<'a> {
-    retained_properties: Vec<Option<Property>>,
-    object_info: &'a ObjectInfo,
+    retained_properties: Vec<Option<&'a Property>>,
+    collection: &'a IsarCollection,
     object_migration_required: bool,
     removed_indexes: Vec<&'a Index>,
     added_indexes: Vec<&'a Index>,
@@ -18,21 +17,17 @@ pub struct CollectionMigrator<'a> {
 
 impl<'a> CollectionMigrator<'a> {
     pub fn create(collection: &'a IsarCollection, existing_collection: &'a IsarCollection) -> Self {
-        let oi = collection.get_object_info();
-        let existing_oi = existing_collection.get_object_info();
+        let properties = collection.get_properties();
+        let existing_properties = existing_collection.get_properties();
 
         let mut retained_properties = vec![];
-        for (name, property) in oi.iter_properties() {
-            let existing_property =
-                existing_oi
-                    .iter_properties()
-                    .find(|(existing_name, existing_p)| {
-                        *existing_name == name && existing_p.data_type == property.data_type
-                    });
-            retained_properties.push(existing_property.map(|(_, p)| p));
+        for property in properties {
+            let existing_property = existing_properties
+                .iter()
+                .find(|p| property.name == p.name && property.data_type == p.data_type);
+            retained_properties.push(existing_property);
         }
-        let object_migration_required =
-            oi.iter_properties().count() != existing_oi.iter_properties().count();
+        let object_migration_required = retained_properties.iter().any(|p| p.is_none());
 
         let mut added_indexes = vec![];
         for index in collection.get_indexes() {
@@ -58,7 +53,7 @@ impl<'a> CollectionMigrator<'a> {
 
         CollectionMigrator {
             retained_properties,
-            object_info: collection.get_object_info(),
+            collection,
             object_migration_required,
             added_indexes,
             removed_indexes,
@@ -66,7 +61,6 @@ impl<'a> CollectionMigrator<'a> {
     }
 
     pub fn migrate(self, txn: &Txn, primary_db: Db) -> Result<()> {
-        println!("{:?}", self.retained_properties);
         for removed_index in self.removed_indexes {
             removed_index.clear(txn)?;
         }
@@ -80,7 +74,7 @@ impl<'a> CollectionMigrator<'a> {
             if self.object_migration_required {
                 for entry in cursor.iter() {
                     let (key, object) = entry?;
-                    let mut ob = ObjectBuilder::new(self.object_info);
+                    let mut ob = self.collection.get_object_builder();
                     for property in &self.retained_properties {
                         Self::write_property_to_ob(&mut ob, *property, object);
                     }
@@ -104,7 +98,7 @@ impl<'a> CollectionMigrator<'a> {
         Ok(())
     }
 
-    fn write_property_to_ob(ob: &mut ObjectBuilder, property: Option<Property>, object: &[u8]) {
+    fn write_property_to_ob(ob: &mut ObjectBuilder, property: Option<&Property>, object: &[u8]) {
         if let Some(p) = property {
             match p.data_type {
                 DataType::Byte => ob.write_byte(p.get_byte(object)),

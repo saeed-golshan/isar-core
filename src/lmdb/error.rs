@@ -1,5 +1,8 @@
+use crate::lmdb::error::LmdbError::Other;
 use libc::c_int;
 use lmdb_sys as ffi;
+use lmdb_sys::mdb_strerror;
+use std::ffi::CStr;
 use std::result::Result;
 
 #[derive(Debug)]
@@ -7,7 +10,7 @@ pub enum LmdbError {
     KeyExist {},
     NotFound {},
     MapFull {},
-    Other { code: c_int },
+    Other { code: i32, message: String },
 }
 
 impl LmdbError {
@@ -16,7 +19,14 @@ impl LmdbError {
             ffi::MDB_KEYEXIST => LmdbError::KeyExist {},
             ffi::MDB_NOTFOUND => LmdbError::NotFound {},
             ffi::MDB_MAP_FULL => LmdbError::MapFull {},
-            other => LmdbError::Other { code: other },
+            other => unsafe {
+                let err_raw = mdb_strerror(other);
+                let err = CStr::from_ptr(err_raw);
+                Other {
+                    code: err_code,
+                    message: err.to_str().unwrap().to_string(),
+                }
+            },
         }
     }
 
@@ -25,7 +35,10 @@ impl LmdbError {
             LmdbError::KeyExist {} => ffi::MDB_KEYEXIST,
             LmdbError::NotFound {} => ffi::MDB_NOTFOUND,
             LmdbError::MapFull {} => ffi::MDB_MAP_FULL,
-            LmdbError::Other { code: other } => *other,
+            LmdbError::Other {
+                code: other,
+                message: _,
+            } => *other,
         }
     }
 }

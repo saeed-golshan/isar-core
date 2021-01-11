@@ -60,7 +60,10 @@ impl IsarInstance {
             .find(|c| c.get_name() == collection_name)
     }
 
-    pub fn create_query_builder(&self, collection: &IsarCollection) -> QueryBuilder {
+    pub fn create_query_builder<'col>(
+        &self,
+        collection: &'col IsarCollection,
+    ) -> QueryBuilder<'col> {
         QueryBuilder::new(
             collection,
             self.dbs.primary,
@@ -84,5 +87,90 @@ impl IsarInstance {
     #[cfg(test)]
     pub fn debug_get_secondary_dup_db(&self) -> Db {
         self.dbs.secondary_dup
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{col, isar};
+    use tempfile::tempdir;
+
+    #[test]
+    fn test_open_new_instance() {
+        isar!(isar, col => col!(f1 => Int));
+
+        let mut ob = col.get_object_builder();
+        ob.write_int(123);
+        let o = ob.finish();
+
+        let txn = isar.begin_txn(true).unwrap();
+        let oid = col.put(&txn, None, o.as_bytes()).unwrap();
+        txn.commit().unwrap();
+
+        let txn = isar.begin_txn(false).unwrap();
+        assert_eq!(col.get(&txn, oid).unwrap().unwrap(), o.as_bytes());
+        txn.abort();
+    }
+
+    #[test]
+    fn test_open_instance_added_collection() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().to_str().unwrap();
+
+        let (oid, object) = {
+            isar!(path: path, isar, col1 => col!("col1", f1 => Int));
+
+            let mut ob = col1.get_object_builder();
+            ob.write_int(123);
+            let o = ob.finish();
+
+            let txn = isar.begin_txn(true).unwrap();
+            let oid = col1.put(&txn, None, o.as_bytes()).unwrap();
+            txn.commit().unwrap();
+
+            (oid, o.as_bytes().to_vec())
+        };
+
+        isar!(path: path, isar, col1 => col!("col1", f1 => Int), col2 => col!("col2", f1 => Int));
+
+        let txn = isar.begin_txn(false).unwrap();
+        assert_eq!(col1.get(&txn, oid).unwrap().unwrap().to_vec(), object);
+        assert_eq!(
+            isar.create_query_builder(col2).build().count(&txn).unwrap(),
+            0
+        );
+        txn.abort();
+    }
+
+    #[test]
+    fn test_open_instance_removed_collection() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().to_str().unwrap();
+
+        {
+            isar!(path: path, isar, col1 => col!("col1", f1 => Int), _col2 => col!("col2", f1 => Int));
+
+            let mut ob = col1.get_object_builder();
+            ob.write_int(123);
+            let o = ob.finish();
+
+            let txn = isar.begin_txn(true).unwrap();
+            //col1.put(&txn, None, o.as_bytes()).unwrap();
+            col1.put(&txn, None, o.as_bytes()).unwrap();
+            txn.commit().unwrap();
+        };
+
+        {
+            isar!(path: path, isar, _col2 => col!("col2", f1 => Int));
+        }
+
+        isar!(path: path, isar, col1 => col!("col1", f1 => Int), _col2 => col!("col2", f1 => Int));
+
+        let txn = isar.begin_txn(false).unwrap();
+        assert_eq!(
+            isar.create_query_builder(col1).build().count(&txn).unwrap(),
+            0
+        );
+        txn.abort();
     }
 }

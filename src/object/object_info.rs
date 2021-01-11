@@ -4,18 +4,16 @@ use crate::object::property::Property;
 use serde_json::{json, Map, Value};
 
 #[cfg_attr(test, derive(Clone))]
-pub struct ObjectInfo {
+pub(crate) struct ObjectInfo {
     properties: Vec<Property>,
-    property_names: Vec<String>,
     static_size: usize,
 }
 
 impl ObjectInfo {
-    pub(crate) fn new(properties: Vec<Property>, property_names: Vec<String>) -> ObjectInfo {
+    pub(crate) fn new(properties: Vec<Property>) -> ObjectInfo {
         let static_size = Self::calculate_static_size(&properties);
         ObjectInfo {
             properties,
-            property_names,
             static_size,
         }
     }
@@ -29,22 +27,8 @@ impl ObjectInfo {
         self.static_size
     }
 
-    pub fn get_property(&self, index: usize) -> Option<Property> {
-        self.properties.get(index).copied()
-    }
-
-    pub fn iter_properties(&self) -> impl Iterator<Item = (&String, Property)> {
-        self.property_names
-            .iter()
-            .zip(self.properties.iter().copied())
-    }
-
-    pub fn get_property_by_name(&self, property_name: &str) -> Option<Property> {
-        self.property_names
-            .iter()
-            .position(|n| n == property_name)
-            .map(|index| self.properties.get(index).unwrap())
-            .copied()
+    pub fn get_properties(&self) -> &[Property] {
+        &self.properties
     }
 
     pub fn entry_to_json(&self, key: &[u8], object: &[u8], primitive_null: bool) -> Value {
@@ -53,8 +37,7 @@ impl ObjectInfo {
         let oid = ObjectId::from_bytes(key);
         object_map.insert("id".to_string(), json!(oid.to_string()));
 
-        let properties = self.property_names.iter().zip(self.properties.iter());
-        for (name, property) in properties {
+        for property in &self.properties {
             let value =
                 if primitive_null && property.data_type.is_static() && property.is_null(object) {
                     Value::Null
@@ -74,7 +57,7 @@ impl ObjectInfo {
                         DataType::StringList => json!(property.get_string_list(object)),
                     }
                 };
-            object_map.insert(name.to_string(), value);
+            object_map.insert(property.name.clone(), value);
         }
         json!(object_map)
     }
@@ -156,14 +139,14 @@ mod tests {
     #[test]
     fn test_calculate_static_size() {
         let properties1 = vec![
-            Property::new(DataType::Byte, 0),
-            Property::new(DataType::Int, 2),
+            Property::new_debug(DataType::Byte, 0),
+            Property::new_debug(DataType::Int, 2),
         ];
         let properties2 = vec![
-            Property::new(DataType::Byte, 0),
-            Property::new(DataType::String, 1),
-            Property::new(DataType::ByteList, 9),
-            Property::new(DataType::Double, 9),
+            Property::new_debug(DataType::Byte, 0),
+            Property::new_debug(DataType::String, 1),
+            Property::new_debug(DataType::ByteList, 9),
+            Property::new_debug(DataType::Double, 9),
         ];
 
         assert_eq!(ObjectInfo::calculate_static_size(&properties1), 6);

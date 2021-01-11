@@ -60,8 +60,9 @@ impl DynamicPosition {
     }
 }
 
-#[derive(PartialEq, Eq, Copy, Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug)]
 pub struct Property {
+    pub name: String,
     pub data_type: DataType,
     pub offset: usize,
 }
@@ -73,8 +74,21 @@ impl Property {
     pub const NULL_FLOAT: f32 = f32::NAN;
     pub const NULL_DOUBLE: f64 = f64::NAN;
 
-    pub fn new(data_type: DataType, offset: usize) -> Self {
-        Property { data_type, offset }
+    pub fn new(name: String, data_type: DataType, offset: usize) -> Self {
+        Property {
+            name,
+            data_type,
+            offset,
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn new_debug(data_type: DataType, offset: usize) -> Self {
+        Property {
+            name: "property".to_string(),
+            data_type,
+            offset,
+        }
     }
 
     #[inline]
@@ -275,7 +289,7 @@ mod tests {
 
     #[test]
     fn test_get_byte() {
-        let property = Property::new(DataType::Byte, 0);
+        let property = Property::new_debug(DataType::Byte, 0);
 
         let bytes = [Property::NULL_BYTE];
         assert_eq!(property.get_byte(&bytes), Property::NULL_BYTE);
@@ -289,7 +303,7 @@ mod tests {
 
     #[test]
     fn test_byte_is_null() {
-        let property = Property::new(DataType::Byte, 0);
+        let property = Property::new_debug(DataType::Byte, 0);
 
         let null_bytes = [0];
         assert!(property.is_null(&null_bytes));
@@ -303,7 +317,7 @@ mod tests {
 
     #[test]
     fn test_int_is_null() {
-        let property = Property::new(DataType::Int, 0);
+        let property = Property::new_debug(DataType::Int, 0);
 
         let null_bytes = i32::to_le_bytes(Property::NULL_INT);
         assert!(property.is_null(&null_bytes));
@@ -314,7 +328,7 @@ mod tests {
 
     #[test]
     fn test_get_int() {
-        let property = Property::new(DataType::Int, 0);
+        let property = Property::new_debug(DataType::Int, 0);
 
         let bytes = i32::to_le_bytes(123);
         assert_eq!(property.get_int(&bytes), 123);
@@ -325,7 +339,7 @@ mod tests {
 
     #[test]
     fn test_get_float() {
-        let property = Property::new(DataType::Float, 0);
+        let property = Property::new_debug(DataType::Float, 0);
 
         let bytes = f32::to_le_bytes(123.123);
         assert!((property.get_float(&bytes) - 123.123).abs() < std::f32::consts::TAU);
@@ -336,7 +350,7 @@ mod tests {
 
     #[test]
     fn test_float_is_null() {
-        let property = Property::new(DataType::Float, 0);
+        let property = Property::new_debug(DataType::Float, 0);
 
         let null_bytes = f32::to_le_bytes(Property::NULL_FLOAT);
         assert!(property.is_null(&null_bytes));
@@ -347,7 +361,7 @@ mod tests {
 
     #[test]
     fn test_get_long() {
-        let property = Property::new(DataType::Long, 0);
+        let property = Property::new_debug(DataType::Long, 0);
 
         let bytes = i64::to_le_bytes(123123123123123123);
         assert_eq!(property.get_long(&bytes), 123123123123123123);
@@ -358,7 +372,7 @@ mod tests {
 
     #[test]
     fn test_long_is_null() {
-        let property = Property::new(DataType::Long, 0);
+        let property = Property::new_debug(DataType::Long, 0);
 
         let null_bytes = i64::to_le_bytes(Property::NULL_LONG);
         assert!(property.is_null(&null_bytes));
@@ -369,7 +383,7 @@ mod tests {
 
     #[test]
     fn test_get_double() {
-        let property = Property::new(DataType::Double, 0);
+        let property = Property::new_debug(DataType::Double, 0);
 
         let bytes = f64::to_le_bytes(123123.123123123);
         assert!((property.get_double(&bytes) - 123123.123123123).abs() < std::f64::consts::TAU);
@@ -380,7 +394,7 @@ mod tests {
 
     #[test]
     fn test_double_is_null() {
-        let property = Property::new(DataType::Double, 0);
+        let property = Property::new_debug(DataType::Double, 0);
 
         let null_bytes = f64::to_le_bytes(f64::NAN);
         assert!(property.is_null(&null_bytes));
@@ -391,7 +405,7 @@ mod tests {
 
     #[test]
     fn test_get_string() {
-        let property = Property::new(DataType::String, 0);
+        let property = Property::new_debug(DataType::String, 0);
 
         let mut bytes = vec![8, 0, 0, 0, 5, 0, 0, 0];
         bytes.extend_from_slice(b"hello");
@@ -406,7 +420,7 @@ mod tests {
 
     #[test]
     fn test_string_is_null() {
-        let property = Property::new(DataType::String, 0);
+        let property = Property::new_debug(DataType::String, 0);
 
         let mut bytes = vec![8, 0, 0, 0, 5, 0, 0, 0];
         bytes.extend_from_slice(b"hello");
@@ -421,7 +435,7 @@ mod tests {
 
     #[test]
     fn test_get_length() {
-        let property = Property::new(DataType::ByteList, 0);
+        let property = Property::new_debug(DataType::ByteList, 0);
 
         let bytes = align(&[8, 0, 0, 0, 1, 0, 0, 0]);
         assert_eq!(property.get_length(&bytes), Some(1));
@@ -432,7 +446,7 @@ mod tests {
 
     #[test]
     fn test_list_is_null() {
-        let property = Property::new(DataType::ByteList, 0);
+        let property = Property::new_debug(DataType::ByteList, 0);
 
         let null_bytes = align(&[0, 0, 0, 0, 0, 0, 0, 0]);
         assert!(property.is_null(&null_bytes));
@@ -446,7 +460,7 @@ mod tests {
 
     #[test]
     fn test_get_byte_list() {
-        let property = Property::new(DataType::ByteList, 0);
+        let property = Property::new_debug(DataType::ByteList, 0);
 
         let bytes = align(&[8, 0, 0, 0, 5, 0, 0, 0, 1, 0, 2, 1, 5]);
         assert_eq!(property.get_byte_list(&bytes), Some(&[1, 0, 2, 1, 5][..]));
@@ -460,7 +474,7 @@ mod tests {
 
     #[test]
     fn test_get_int_list() {
-        let property = Property::new(DataType::IntList, 0);
+        let property = Property::new_debug(DataType::IntList, 0);
 
         let bytes = align(&[8, 0, 0, 0, 2, 0, 0, 0, 5, 0, 0, 0, 6, 0, 0, 0]);
         assert_eq!(property.get_int_list(&bytes), Some(&[5i32, 6][..]));
@@ -474,7 +488,7 @@ mod tests {
 
     #[test]
     fn test_get_long_list() {
-        let property = Property::new(DataType::LongList, 0);
+        let property = Property::new_debug(DataType::LongList, 0);
 
         let bytes = align(&[
             8, 0, 0, 0, 2, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0,
@@ -490,7 +504,7 @@ mod tests {
 
     #[test]
     fn test_get_float_list() {
-        let property = Property::new(DataType::FloatList, 0);
+        let property = Property::new_debug(DataType::FloatList, 0);
 
         let mut bytes = vec![8, 0, 0, 0, 2, 0, 0, 0];
         bytes.extend_from_slice(&10.5f32.to_le_bytes());
@@ -507,7 +521,7 @@ mod tests {
 
     #[test]
     fn test_get_double_list() {
-        let property = Property::new(DataType::DoubleList, 0);
+        let property = Property::new_debug(DataType::DoubleList, 0);
 
         let mut bytes = vec![8, 0, 0, 0, 2, 0, 0, 0];
         bytes.extend_from_slice(&10.5f64.to_le_bytes());
@@ -524,7 +538,7 @@ mod tests {
 
     #[test]
     fn test_get_string_list() {
-        let property = Property::new(DataType::StringList, 0);
+        let property = Property::new_debug(DataType::StringList, 0);
 
         let mut bytes = vec![
             8, 0, 0, 0, 3, 0, 0, 0, 32, 0, 0, 0, 5, 0, 0, 0, 37, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,

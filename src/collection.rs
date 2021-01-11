@@ -6,13 +6,13 @@ use crate::object::object_builder::ObjectBuilder;
 use crate::object::object_id::ObjectId;
 use crate::object::object_id_generator::ObjectIdGenerator;
 use crate::object::object_info::ObjectInfo;
-use crate::object::property::Property;
 use crate::query::where_clause::WhereClause;
 use crate::txn::IsarTxn;
 
 use itertools::Itertools;
 use serde_json::{json, Value};
 
+use crate::object::property::Property;
 #[cfg(test)]
 use {crate::utils::debug::dump_db, hashbrown::HashSet};
 
@@ -51,8 +51,8 @@ impl IsarCollection {
         &self.name
     }
 
-    pub fn get_object_info(&self) -> &ObjectInfo {
-        &self.object_info
+    pub fn get_properties(&self) -> &[Property] {
+        self.object_info.get_properties()
     }
 
     pub fn get_object_builder(&self) -> ObjectBuilder {
@@ -67,7 +67,7 @@ impl IsarCollection {
         &self.indexes
     }
 
-    pub fn verify_object_id(&self, oid: ObjectId) -> Result<()> {
+    fn verify_object_id(&self, oid: ObjectId) -> Result<()> {
         if oid.get_prefix() != self.id {
             Err(IsarError::InvalidObjectId {})
         } else {
@@ -139,14 +139,6 @@ impl IsarCollection {
             .map(|i| i.create_where_clause())
     }
 
-    pub fn get_property(&self, property_index: usize) -> Option<Property> {
-        self.object_info.get_property(property_index)
-    }
-
-    pub fn get_property_by_name(&self, property_name: &str) -> Option<Property> {
-        self.object_info.get_property_by_name(property_name)
-    }
-
     fn delete_from_indexes(&self, lmdb_txn: &Txn, oid: ObjectId) -> Result<bool> {
         let oid_bytes = oid.as_bytes();
         let existing_object = self.db.get(lmdb_txn, &oid_bytes)?;
@@ -189,6 +181,11 @@ impl IsarCollection {
     #[cfg(test)]
     pub fn debug_get_db(&self) -> Db {
         self.db
+    }
+
+    #[cfg(test)]
+    pub(crate) fn debug_get_object_info(&self) -> &ObjectInfo {
+        &self.object_info
     }
 }
 

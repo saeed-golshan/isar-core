@@ -66,32 +66,12 @@ impl Db {
 
     #[allow(clippy::try_err)]
     pub fn put_no_dup_data(&self, txn: &Txn, key: &[u8], data: &[u8]) -> Result<bool> {
+        assert!(self.dup);
         let result = self.put_internal(txn, key, data, ffi::MDB_NODUPDATA);
         match result {
             Ok(()) => Ok(true),
             Err(LmdbError::KeyExist {}) => Ok(false),
             Err(e) => Err(e)?,
-        }
-    }
-
-    pub fn reserve(&self, txn: &Txn, key: &[u8], size: usize) -> Result<&mut [u8]> {
-        unsafe {
-            let mut key = to_mdb_val(key);
-            let mut data = ffi::MDB_val {
-                mv_size: size,
-                mv_data: ptr::null::<u8>() as *mut libc::c_void,
-            };
-            lmdb_result(ffi::mdb_put(
-                txn.txn,
-                self.dbi,
-                &mut key,
-                &mut data,
-                ffi::MDB_RESERVE,
-            ))?;
-            Ok(std::slice::from_raw_parts_mut(
-                data.mv_data as *mut u8,
-                size,
-            ))
         }
     }
 
@@ -126,11 +106,8 @@ impl Db {
     pub fn delete_key_prefix(&self, txn: &Txn, key_prefix: &[u8]) -> Result<()> {
         let mut cursor = self.cursor(txn)?;
         let check_prefix = |key: &[u8], _: &[u8]| &key[0..key_prefix.len()] == key_prefix;
-        if let Some((key, val)) = cursor.move_to_gte(key_prefix)? {
-            if check_prefix(key, val) {
-                cursor.delete_current(self.dup)?;
-                cursor.delete_while(check_prefix, self.dup)?;
-            }
+        if cursor.move_to_gte(key_prefix)?.is_some() {
+            cursor.delete_while(check_prefix, self.dup)?;
         }
         Ok(())
     }
@@ -259,13 +236,44 @@ mod tests {
     }
 
     #[test]
+    fn test_put_no_override() {
+        let env = get_env();
+        let txn = env.txn(true).unwrap();
+        let db = Db::open(&txn, "test", false, false).unwrap();
+        db.put(&txn, b"key", b"val").unwrap();
+        txn.commit().unwrap();
+
+        let txn = env.txn(true).unwrap();
+        assert_eq!(db.put_no_override(&txn, b"key", b"err").unwrap(), false);
+        assert_eq!(db.put_no_override(&txn, b"key2", b"val2").unwrap(), true);
+        assert_eq!(db.get(&txn, b"key").unwrap(), Some(&b"val"[..]));
+        assert_eq!(db.get(&txn, b"key2").unwrap(), Some(&b"val2"[..]));
+        txn.abort();
+    }
+
+    #[test]
+    fn test_put_no_dup_data() {
+        let env = get_env();
+        let txn = env.txn(true).unwrap();
+        let db = Db::open(&txn, "test", true, false).unwrap();
+        db.put(&txn, b"key", b"val").unwrap();
+        txn.commit().unwrap();
+
+        let txn = env.txn(true).unwrap();
+        assert_eq!(db.put_no_dup_data(&txn, b"key", b"val").unwrap(), false);
+        assert_eq!(db.put_no_dup_data(&txn, b"key2", b"val2").unwrap(), true);
+        assert_eq!(db.get(&txn, b"key2").unwrap(), Some(&b"val2"[..]));
+        txn.abort();
+    }
+
+    #[test]
     fn test_clear_db() {
         let env = get_env();
         let txn = env.txn(true).unwrap();
         let db = Db::open(&txn, "test", false, false).unwrap();
         db.put(&txn, b"key1", b"val1").unwrap();
         db.put(&txn, b"key2", b"val2").unwrap();
-        db.put(&txn, b"keye", b"val3").unwrap();
+        db.put(&txn, b"key3", b"val3").unwrap();
         txn.commit().unwrap();
 
         let txn = env.txn(true).unwrap();

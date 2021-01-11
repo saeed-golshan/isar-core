@@ -24,7 +24,11 @@ impl<'a> ObjectBuilder<'a> {
     }
 
     fn get_next_property(&mut self) -> (usize, DataType) {
-        let property = self.object_info.get_property(self.property_index).unwrap();
+        let property = self
+            .object_info
+            .get_properties()
+            .get(self.property_index)
+            .unwrap();
         self.property_index += 1;
         (property.offset, property.data_type)
     }
@@ -38,7 +42,11 @@ impl<'a> ObjectBuilder<'a> {
     }
 
     pub fn write_null(&mut self) {
-        let property = self.object_info.get_property(self.property_index).unwrap();
+        let property = self
+            .object_info
+            .get_properties()
+            .get(self.property_index)
+            .unwrap();
         match property.data_type {
             DataType::Byte => self.write_byte(Property::NULL_BYTE),
             DataType::Int => self.write_int(Property::NULL_INT),
@@ -173,7 +181,7 @@ mod tests {
         ($var:ident, $oi:ident, $type:ident) => {
             isar!(isar, col => col!("int" => $type));
             let mut $var = col.get_object_builder();
-            let $oi = col.get_object_info();
+            let $oi = col.debug_get_object_info();
         };
     }
 

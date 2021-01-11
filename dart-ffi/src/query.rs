@@ -11,10 +11,10 @@ use isar_core::query::where_clause::WhereClause;
 use isar_core::txn::IsarTxn;
 
 #[no_mangle]
-pub extern "C" fn isar_qb_create(
+pub extern "C" fn isar_qb_create<'col>(
     isar: &IsarInstance,
-    collection: &IsarCollection,
-) -> *mut QueryBuilder {
+    collection: &'col IsarCollection,
+) -> *mut QueryBuilder<'col> {
     let builder = isar.create_query_builder(collection);
     Box::into_raw(Box::new(builder))
 }
@@ -31,7 +31,10 @@ pub unsafe extern "C" fn isar_qb_add_where_clause(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn isar_qb_set_filter(builder: &mut QueryBuilder, filter: *mut Filter) {
+pub unsafe extern "C" fn isar_qb_set_filter<'col>(
+    builder: &mut QueryBuilder<'col>,
+    filter: *mut Filter<'col>,
+) {
     let filter = *Box::from_raw(filter);
     builder.set_filter(filter);
 }

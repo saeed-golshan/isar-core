@@ -21,26 +21,26 @@ pub enum Case {
     Insensitive,
 }
 
-pub struct Query {
+pub struct Query<'col> {
     where_clauses: Vec<WhereClause>,
     where_clauses_overlapping: bool,
     primary_db: Db,
     secondary_db: Option<Db>,
     secondary_dup_db: Option<Db>,
-    filter: Option<Filter>,
+    filter: Option<Filter<'col>>,
     sort: Vec<(Property, Sort)>,
     distinct: Option<Vec<Property>>,
     offset_limit: Option<(usize, usize)>,
 }
 
-impl Query {
+impl<'col> Query<'col> {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         where_clauses: Vec<WhereClause>,
         primary_db: Db,
         secondary_db: Option<Db>,
         secondary_dup_db: Option<Db>,
-        filter: Option<Filter>,
+        filter: Option<Filter<'col>>,
         sort: Vec<(Property, Sort)>,
         distinct: Option<Vec<Property>>,
         offset_limit: Option<(usize, usize)>,

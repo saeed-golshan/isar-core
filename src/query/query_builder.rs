@@ -9,21 +9,21 @@ use crate::query::query::{Query, Sort};
 use crate::query::where_clause::WhereClause;
 use itertools::Itertools;
 
-pub struct QueryBuilder {
-    primary_where_clause: WhereClause,
+pub struct QueryBuilder<'col> {
+    collection: &'col IsarCollection,
     where_clauses: Vec<WhereClause>,
     primary_db: Db,
     secondary_db: Db,
     secondary_dup_db: Db,
     has_secondary_where: bool,
     has_secondary_dup_where: bool,
-    filter: Option<Filter>,
+    filter: Option<Filter<'col>>,
     sort: Vec<(Property, Sort)>,
     distinct: Option<Vec<Property>>,
     offset_limit: Option<(usize, usize)>,
 }
 
-impl QueryBuilder {
+impl<'col> QueryBuilder<'col> {
     pub(crate) fn new(
         collection: &IsarCollection,
         primary_db: Db,
@@ -31,7 +31,7 @@ impl QueryBuilder {
         secondary_dup_db: Db,
     ) -> QueryBuilder {
         QueryBuilder {
-            primary_where_clause: collection.create_primary_where_clause(),
+            collection,
             where_clauses: vec![],
             primary_db,
             secondary_db,
@@ -62,7 +62,7 @@ impl QueryBuilder {
         self.where_clauses.push(wc);
     }
 
-    pub fn set_filter(&mut self, filter: Filter) {
+    pub fn set_filter(&mut self, filter: Filter<'col>) {
         self.filter = Some(filter);
     }
 
@@ -120,11 +120,11 @@ impl QueryBuilder {
         merged
     }*/
 
-    pub fn build(self) -> Query {
+    pub fn build(self) -> Query<'col> {
         let secondary_db = option!(self.has_secondary_where, self.secondary_db);
         let secondary_dup_db = option!(self.has_secondary_dup_where, self.secondary_dup_db);
         let where_clauses = if self.where_clauses.is_empty() {
-            vec![self.primary_where_clause]
+            vec![self.collection.create_primary_where_clause()]
         } else {
             let filtered = self
                 .where_clauses

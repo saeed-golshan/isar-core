@@ -15,8 +15,8 @@ pub enum IsarError {
     #[error("The database is full.")]
     DbFull {},
 
-    #[error("Unique index violated.")]
-    UniqueViolated {},
+    #[error("The unique index {index:?} violated.")]
+    UniqueViolated { index: String },
 
     #[error("Write transaction required.")]
     WriteTxnRequired {},
@@ -45,8 +45,8 @@ pub enum IsarError {
         message: String,
     },
 
-    #[error("LmdbError: {code:?}")]
-    LmdbError { code: i32 },
+    #[error("LmdbError ({code:?}): {message:?}")]
+    LmdbError { code: i32, message: String },
 }
 
 impl IsarError {}
@@ -55,8 +55,10 @@ impl From<LmdbError> for IsarError {
     fn from(e: LmdbError) -> Self {
         match e {
             LmdbError::MapFull {} => IsarError::DbFull {},
+            LmdbError::Other { code, message } => IsarError::LmdbError { code, message },
             _ => IsarError::LmdbError {
                 code: e.to_err_code(),
+                message: "Error that should have been catched.".to_string(),
             },
         }
     }
